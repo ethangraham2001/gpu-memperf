@@ -1,2 +1,5 @@
 gpu-memperf
 *.o
+*.csv
+.cache
+compile_commands.json
