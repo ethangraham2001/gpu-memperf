@@ -4,12 +4,13 @@ INCLUDES := -I./include
 
 SRCS := $(wildcard src/*.cc src/*.cu)
 KERNELS := $(wildcard kernels/*.cu)
+HEADERS := $(wildcard include/*.hh include/*.cuh)
 
 TARGET := gpu-memperf
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) $(KERNELS)
+$(TARGET): $(SRCS) $(KERNELS) $(HEADERS)
 	$(NVCC) $(NVCCFLAGS) $(INCLUDES) $(SRCS) $(KERNELS) -o $(TARGET)
 
 clean:
