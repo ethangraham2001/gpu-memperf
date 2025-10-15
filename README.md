@@ -13,6 +13,26 @@ pacman -S cuda
 
 Then, just run `make` (or `make all`) to build the binary.
 
+## Usage
+
+The idea is to run every benchmark as follows:
+
+```
+./gpu-memperf <benchname> <list-of-arguments>
+```
+
+For example, for the pchase_cpu benchmark for estimating CPU cache size, we
+could call it like:
+
+```sh
+./gpu-memperf pcache_cpu --num_iters=10000 --multiplier=4
+```
+
+The full set of options, and how they should be parsed, are defined by the
+individual benchmarks.
+
+https://github.com/ethangraham2001/gpu-memperf/blob/b4daf09a9ae45d63b5c8d4a8d58ad4c8fd50c40b/include/PchaseCPUBenchmark.hh#L33-L37
+
 ## Opinionated Style Guide
 
 Please use `camelCase` instead of `snake_case`.
