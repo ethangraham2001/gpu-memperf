@@ -21,8 +21,10 @@ namespace benchmark {
  */
 template <typename T>
 concept Benchmark = requires(T bench, const std::vector<std::string>& args) {
+  // clang-format off
   {bench.name()}->std::convertible_to<std::string>;
   {bench.run(std::declval<std::ostream&>())}->std::same_as<void>;
+  // clang-format on
 };
 
 /**

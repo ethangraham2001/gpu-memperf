@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  format-check:
+    name: Check Code Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-18
+      
+      - name: Check formatting
+        run: |
+          # Find all C/C++/CUDA files and check formatting
+          find . -name '*.cc' -o -name '*.cpp' -o -name '*.cu' -o -name '*.cuh' -o -name '*.hh' -o -name '*.h' | \
+          while read file; do
+            clang-format-18 --dry-run --Werror "$file"
+          done
+
+  whitespace-check:
+    name: Check Trailing Whitespace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for trailing whitespace
+        run: |
+          # Check all source files for trailing whitespace
+          if grep -r -n --include='*.cc' --include='*.cpp' --include='*.cu' --include='*.cuh' --include='*.hh' --include='*.h' --include='*.md' --include='Makefile' '[[:space:]]$' .; then
+            echo "Error: Trailing whitespace found in the above files"
+            exit 1
+          else
+            echo "No trailing whitespace found"
+          fi
+
+  build:
+    name: Build Project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install CUDA Toolkit
+        run: |
+          # Install GCC-12 (compatible with CUDA 12.3)
+          sudo apt-get update
+          sudo apt-get install -y gcc-12 g++-12
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
+
+          # Install CUDA
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get -y install cuda-nvcc-12-3 cuda-cudart-dev-12-3
+          echo "/usr/local/cuda-12.3/bin" >> $GITHUB_PATH
+      
+      - name: Verify CUDA installation
+        run: |
+          gcc --version
+          nvcc --version
+          which nvcc
+      
+      - name: Build project
+        run: |
+          make
+        env:
+          # Ensure warnings are treated as errors
+          CXXFLAGS: "-Werror"
+          NVCCFLAGS: "-Werror all-warnings"
+      
+      - name: Check build artifacts
+        run: |
+          ls -lh gpu-memperf || echo "Build artifact not found - check Makefile target name"
