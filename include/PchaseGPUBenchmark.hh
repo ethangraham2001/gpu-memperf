@@ -1,6 +1,7 @@
 #ifndef PCHASEGPUBENCHMARK_HH
 #define PCHASEGPUBENCHMARK_HH
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -41,14 +42,34 @@ class PChaseGPUBenchmark {
     /* We choose 16 as a default stride, as 16 * 8B = 128, which is the cache
      * line size on most modern NVIDIA GPUs. */
     stride_ = parser.getOr("stride", 16UL);
+    /* 20% increases in latency are interpreted as a potential cache size
+     * boundary during the coarse-grained sweep. */
+    threshCoarse_ = parser.getOr("thresh_coarse", 1.2);
   }
 
   std::string name() const { return benchmarkName; }
 
   void run(std::ostream& os) {
-    const auto result = runBenchmarks(startBytes_, multiplier_, numExperiments_, numIters_);
+    /* Step 1: take coarse grained measurements, multiplying the effective size
+     * of the chain by 2 every iteration. This detects approximately where large
+     * increases in access latency occur. */
+    const auto coarse = runCoarse(startBytes_, multiplier_, numExperiments_);
+
+    /* Step 2: take finer grained measurements around the areas where we saw
+     * a latency increase. */
+    const auto ridges = findRidges(coarse, threshCoarse_);
+    std::vector<std::pair<uint64_t, double>> fine;
+    for (const auto& [lb, ub] : ridges) {
+      uint64_t stepSize = (ub - lb) / 32;
+      const auto fineGrained = runFine(lb, ub, stepSize);
+      for (const auto& p : fineGrained)
+        fine.push_back(p);
+    }
+
+    const auto results = dedupMeasurements(coarse, fine);
+
     os << "bytes,avg_access_latency\n";
-    for (const auto& [bytes, avgLatency] : result)
+    for (const auto& [bytes, avgLatency] : fine)
       os << bytes << "," << avgLatency << "\n";
   }
 
@@ -58,6 +79,8 @@ class PChaseGPUBenchmark {
   uint64_t numIters_;
   uint64_t startBytes_;
   uint64_t stride_; /* Stride in array elements, where each element is 8 bytes. */
+  double threshCoarse_;
+  uint64_t threshFine_;
 
   static uint64_t* initializeChain(uint64_t numEntries, uint64_t stride) {
     uint64_t* chain = static_cast<uint64_t*>(malloc(numEntries * sizeof(uint64_t)));
@@ -88,18 +111,52 @@ class PChaseGPUBenchmark {
     return cycles;
   }
 
-  const std::vector<std::pair<uint64_t, double>> runBenchmarks(uint64_t startBytes, uint64_t multiplier,
-                                                               uint64_t numExperiments, uint64_t numIters) const {
+  static std::vector<std::pair<uint64_t, uint64_t>> findRidges(
+      const std::vector<std::pair<uint64_t, double>>& measurements, const double thresh) {
+    std::vector<std::pair<uint64_t, uint64_t>> out;
+    for (uint64_t i = 0; i < measurements.size() - 1; i++)
+      if (measurements[i + 1].second >= thresh * measurements[i].second)
+        out.push_back({measurements[i].first, measurements[i + 1].first});
+    return out;
+  }
+
+  const std::vector<std::pair<uint64_t, double>> runCoarse(uint64_t startBytes, uint64_t multiplier,
+                                                           uint64_t numExperiments) const {
     std::vector<std::pair<uint64_t, double>> out;
     out.reserve(numExperiments_);
     uint64_t numBytes = startBytes;
     for (uint64_t i = 0; i < numExperiments; i++) {
-      uint64_t cycles = runExperiment(numIters, stride_, numBytes);
-      double avgCyclesPerAccess = (double)cycles / (double)numIters;
+      uint64_t cycles = runExperiment(numIters_, stride_, numBytes);
+      double avgCyclesPerAccess = (double)cycles / (double)numIters_;
       out.push_back({numBytes, avgCyclesPerAccess});
       numBytes *= multiplier;
     }
     return out;
+  }
+
+  const std::vector<std::pair<uint64_t, double>> runFine(uint64_t lowerBound, uint64_t upperBound, uint64_t stride) {
+    std::vector<std::pair<uint64_t, double>> out;
+    out.reserve((upperBound - lowerBound + 1) / stride);
+    for (uint64_t size = lowerBound; size <= upperBound; size += stride) {
+      uint64_t cycles = runExperiment(numIters_, stride_, size);
+      double avgCyclesPerAccess = (double)cycles / (double)numIters_;
+      out.push_back({size, avgCyclesPerAccess});
+    }
+    return out;
+  }
+
+  static std::vector<std::pair<uint64_t, double>> dedupMeasurements(
+      const std::vector<std::pair<uint64_t, double>>& coarse, const std::vector<std::pair<uint64_t, double>>& fine) {
+    std::map<uint64_t, double> dedup;
+    for (const auto& p : coarse)
+      dedup.insert(p);
+
+    for (const auto& [bytes, avgLatency] : fine) {
+      auto [it, inserted] = dedup.insert({bytes, avgLatency});
+      if (!inserted)
+        it->second = (it->second + avgLatency) / 2.0;
+    }
+    return {dedup.begin(), dedup.end()};
   }
 };
 
