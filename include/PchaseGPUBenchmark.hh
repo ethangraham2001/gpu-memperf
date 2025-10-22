@@ -6,6 +6,7 @@
 
 #include <ArgParser.hh>
 #include <Benchmark.hh>
+#include "Util.hh"
 
 /* Forward declaration. */
 void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uint64_t* total_cycles);
@@ -19,6 +20,12 @@ void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uin
  * the effective cache sizes of the GPUs that we work with and as a result
  * write bandwidth benchmarks that are tailored for the actual cache size.
  *
+ * NOTE: it's important that the stride parameter be coprime with the number
+ * of elements in the chain array. For example, assume a stride of 64 and a
+ * chain array of size 128. We would end up exclusively accessing elements
+ * 0 and 64 before wrapping back around, rendering most of the array totally
+ * useless.
+ *
  * [1] https://arxiv.org/pdf/1804.06826
  */
 class PChaseGPUBenchmark {
@@ -27,11 +34,13 @@ class PChaseGPUBenchmark {
 
   PChaseGPUBenchmark(const std::vector<std::string>& args = {}) {
     benchmark::ArgParser parser(args);
-    numExperiments_ = parser.getOr("num_experiments", 12);
-    multiplier_ = parser.getOr("multiplier", 2);
+    numExperiments_ = parser.getOr("num_experiments", 12UL);
+    multiplier_ = parser.getOr("multiplier", 2UL);
     numIters_ = parser.getOr("num_iters", 1000000UL);
-    startBytes_ = parser.getOr("start_bytes", 1 << 16 /* 65536. */);
-    stride_ = parser.getOr("stride", 1 << 6);
+    startBytes_ = parser.getOr("start_bytes", 1UL << 16 /* 65536. */);
+    /* We choose 16 as a default stride, as 16 * 8B = 128, which is the cache
+     * line size on most modern NVIDIA GPUs. */
+    stride_ = parser.getOr("stride", 16UL);
   }
 
   std::string name() const { return benchmarkName; }
@@ -67,11 +76,13 @@ class PChaseGPUBenchmark {
     if (numBytes % sizeof(uint64_t))
       throw std::runtime_error("number of bytes should be a multiple of 8 bytes");
 
-    uint64_t numEntries = numBytes / sizeof(uint64_t);
+    /* See the NOTE in the class header comment for an explanation as to why we
+     * want stride to be coprime with the number of entries in the chain. */
+    uint64_t numEntries = util::makeCoprime(numBytes / sizeof(uint64_t), stride);
     uint64_t* chain = initializeChain(numEntries, stride);
 
     uint64_t cycles;
-    launchPChaseKernel(chain, numBytes, numIters, &cycles);
+    launchPChaseKernel(chain, numEntries * sizeof(uint64_t), numIters, &cycles);
 
     releaseChain(chain);
     return cycles;

@@ -31,10 +31,10 @@ class PchaseCPUBenchmark {
 
   PchaseCPUBenchmark(const std::vector<std::string>& args = {}) {
     benchmark::ArgParser parser(args);
-    numExperiments = parser.getOr("num_experiments", 12);
-    multiplier = parser.getOr("multiplier", 2);
-    numIters = parser.getOr("num_iters", 1e6);
-    startBytes = parser.getOr("start_bytes", 1 << 16 /* 65536. */);
+    numExperiments = parser.getOr("num_experiments", 12UL);
+    multiplier = parser.getOr("multiplier", 2UL);
+    numIters = parser.getOr("num_iters", 1000000UL);
+    startBytes = parser.getOr("start_bytes", 1UL << 16 /* 65536. */);
   }
 
   /* Implement the `Benchmark` concept. */
@@ -52,7 +52,7 @@ class PchaseCPUBenchmark {
   uint64_t numIters;
   uint64_t startBytes;
 
-  static const std::vector<int> permutation(int n) {
+  static const std::vector<int> permutation(uint64_t n) {
     std::vector<int> out(n);
     std::iota(out.begin(), out.end(), 0);
     std::random_device rd;
@@ -61,10 +61,10 @@ class PchaseCPUBenchmark {
     return out;
   }
 
-  static const Node* generatePointerChain(int n) {
+  static const Node* generatePointerChain(uint64_t n) {
     const auto perm = permutation(n);
     Node* nodes = (Node*)malloc(n * sizeof(Node));
-    for (auto i = 0; i < n - 1; i++)
+    for (uint64_t i = 0; i < n - 1; i++)
       nodes[perm[i]].next = &nodes[perm[i + 1]];
     nodes[perm[n - 1]].next = &nodes[perm[0]];
     return nodes;
@@ -78,9 +78,10 @@ class PchaseCPUBenchmark {
 
   static void access(const Node* n, uint64_t numIters) {
     volatile uintptr_t sink;
-    for (auto i = 0; i < numIters; i++)
+    for (uint64_t i = 0; i < numIters; i++)
       n = n->next;
     sink = (uintptr_t)n;
+    (void)sink;
   }
 
   static uint64_t runExperiment(uint64_t numIters, uint64_t numNodes) {
@@ -101,7 +102,7 @@ class PchaseCPUBenchmark {
                                                                         uint64_t numExperiments, uint64_t numIters) {
     std::vector<std::pair<uint64_t, uint64_t>> out;
     uint64_t numBytes = startBytes;
-    for (auto i = 0; i < numExperiments; i++) {
+    for (uint64_t i = 0; i < numExperiments; i++) {
       uint64_t numNodes = bytesToNumNodes(numBytes);
       const auto nanos = runExperiment(numIters, numNodes);
       const auto nanosPerChase = nanos / numIters;

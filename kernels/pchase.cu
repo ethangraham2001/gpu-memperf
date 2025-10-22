@@ -35,7 +35,7 @@ void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uin
   throwOnErr(err);
 
   /* We want to serialize accesses for memory latency measurements, so run with exactly one thread. */
-  pchaseKernel<<<1, 1>>>(deviceArr, iters, total_cycles);
+  pchaseKernel<<<1, 1>>>(deviceArr, iters, deviceCycles);
 
   err = cudaDeviceSynchronize();
   throwOnErr(err);
