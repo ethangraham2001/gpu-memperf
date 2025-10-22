@@ -101,7 +101,7 @@ class PchaseCPUBenchmark {
                                                                         uint64_t numExperiments, uint64_t numIters) {
     std::vector<std::pair<uint64_t, uint64_t>> out;
     uint64_t numBytes = startBytes;
-    for (int i = 0; i < numExperiments; i++) {
+    for (auto i = 0; i < numExperiments; i++) {
       uint64_t numNodes = bytesToNumNodes(numBytes);
       const auto nanos = runExperiment(numIters, numNodes);
       const auto nanosPerChase = nanos / numIters;
