@@ -10,6 +10,7 @@
 
 #include <ArgParser.hh>
 #include <Benchmark.hh>
+#include <Encoder.hh>
 
 static constexpr uint64_t _cachelineSize = 64;
 static constexpr uint64_t _paddingSize = 8;
@@ -29,7 +30,7 @@ class PchaseCPUBenchmark {
  public:
   static constexpr const char* benchmarkName = "pchase_cpu";
 
-  PchaseCPUBenchmark(const std::vector<std::string>& args = {}) {
+  PchaseCPUBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
     numExperiments = parser.getOr("num_experiments", 12UL);
     multiplier = parser.getOr("multiplier", 2UL);
@@ -39,14 +40,16 @@ class PchaseCPUBenchmark {
 
   /* Implement the `Benchmark` concept. */
   std::string name() const { return benchmarkName; }
-  void run(std::ostream& os) {
+  void run() {
+    enc_.log() << "Launching " << name() << "\n";
     const auto result = runBenchmarks(startBytes, multiplier, numExperiments, numIters);
-    os << "bytes,nanos_per_access\n";
+    enc_["latency.csv"] << "bytes,nanos_per_access\n";
     for (const auto& [bytes, chasesPerNano] : result)
-      os << bytes << "," << chasesPerNano << "\n";
+      enc_["latency.csv"] << bytes << "," << chasesPerNano << "\n";
   };
 
  private:
+  Encoder& enc_;
   uint64_t numExperiments;
   uint64_t multiplier;
   uint64_t numIters;
