@@ -81,6 +81,7 @@ class PChaseGPUBenchmark {
      * for access latency. */
     double clockLatency = measureClock64Latency(numIters_);
 
+    enc_["clock64_latency"] << clockLatency << " cycles " << std::endl;
     enc_["latency.csv"] << "bytes,avg_access_latency\n";
     for (const auto& [bytes, avgLatency] : fine)
       enc_["latency.csv"] << bytes << "," << (avgLatency - clockLatency) << "\n";
