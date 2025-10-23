@@ -2,11 +2,17 @@
 
 #include <Benchmark.hh>
 #include <PchaseCPUBenchmark.hh>
+#include <PchaseGPUBenchmark.hh>
 #include <Util.hh>
+
+void __attribute__((noreturn)) usage() {
+  std::cout << "Usage: ./gpu-memperf <benchmark-name> <parameters>" << std::endl;
+  exit(0);
+}
 
 int main(int argc, char** argv) {
   if (argc < 2)
-    throw std::invalid_argument("insufficient arguments");
+    usage();
 
   std::string name = argv[1];
   const std::vector<std::string> args(argv + 2, argv + argc);

@@ -1,5 +1,8 @@
 NVCC := nvcc
 NVCCFLAGS := -std=c++20 -O3 -arch=sm_80
+NVCCFLAGS += -Werror all-warnings
+NVCCFLAGS += -Xcompiler "-Wall,-Wextra,-Wconversion,-Wshadow"
+NVCCFLAGS += -Xcompiler "-Wno-unused-parameter"  # Often unavoidable in CUDA
 INCLUDES := -I./include
 
 SRCS := $(wildcard src/*.cc src/*.cu)
