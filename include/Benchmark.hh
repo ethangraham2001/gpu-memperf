@@ -8,6 +8,8 @@
 #include <ostream>
 #include <vector>
 
+#include <Encoder.hh>
+
 namespace benchmark {
 
 /**
@@ -20,10 +22,10 @@ namespace benchmark {
  * - It should be runnable, writing its output to some output stream.
  */
 template <typename T>
-concept Benchmark = requires(T bench, const std::vector<std::string>& args) {
+concept Benchmark = requires(T bench, Encoder& e, const std::vector<std::string>& args) {
   // clang-format off
   {bench.name()}->std::convertible_to<std::string>;
-  {bench.run(std::declval<std::ostream&>())}->std::same_as<void>;
+  {bench.run()}->std::same_as<void>;
   // clang-format on
 };
 
@@ -34,7 +36,7 @@ concept Benchmark = requires(T bench, const std::vector<std::string>& args) {
  * initialized before launch, and accessible by the registry at runtime.
  */
 class BenchmarkRegistry {
-  std::map<std::string, std::function<void(const std::vector<std::string>&, std::ostream&)>> benchmarks_;
+  std::map<std::string, std::function<void(Encoder& enc, const std::vector<std::string>&)>> benchmarks_;
 
  public:
   static BenchmarkRegistry& instance() {
@@ -44,14 +46,14 @@ class BenchmarkRegistry {
 
   template <Benchmark B>
   void registerBenchmark(std::string name) {
-    benchmarks_[name] = [](const std::vector<std::string>& args, std::ostream& out) {
-      B bench(args);
-      bench.run(out);
+    benchmarks_[name] = [](Encoder& enc, const std::vector<std::string>& args) {
+      B bench(enc, args);
+      bench.run();
     };
   }
 
-  void run(const std::string& name, const std::vector<std::string>& args, std::ostream& out) {
-    benchmarks_.at(name)(args, out);
+  void run(const std::string& name, Encoder& enc, const std::vector<std::string>& args) {
+    benchmarks_.at(name)(enc, args);
   }
 
   bool exists(const std::string& name) const { return benchmarks_.contains(name); }

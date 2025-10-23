@@ -17,9 +17,11 @@ int main(int argc, char** argv) {
   std::string name = argv[1];
   const std::vector<std::string> args(argv + 2, argv + argc);
 
+  Encoder encoder;
   try {
     /* Run the benchmark, serialize the results to std::cout. */
-    benchmark::BenchmarkRegistry::instance().run(name, args, std::cout);
+    benchmark::BenchmarkRegistry::instance().run(name, encoder, args);
+    encoder.exportAll(name);
   } catch (std::out_of_range& e) {
     std::cerr << "Error: Unknown benchmark \"" << name << "\"\n";
     std::cerr << "Available benchmarks: ";

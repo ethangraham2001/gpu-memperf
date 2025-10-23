@@ -43,7 +43,7 @@ class PChaseGPUBenchmark {
  public:
   static constexpr const char* benchmarkName = "pchase_gpu";
 
-  PChaseGPUBenchmark(const std::vector<std::string>& args = {}) {
+  PChaseGPUBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
     numExperiments_ = parser.getOr("num_experiments", 12UL);
     multiplier_ = parser.getOr("multiplier", 2UL);
@@ -59,7 +59,7 @@ class PChaseGPUBenchmark {
 
   std::string name() const { return benchmarkName; }
 
-  void run(std::ostream& os) {
+  void run() {
     /* Step 1: take coarse grained measurements, multiplying the effective size
      * of the chain by 2 every iteration. This detects approximately where large
      * increases in access latency occur. */
@@ -81,12 +81,13 @@ class PChaseGPUBenchmark {
      * for access latency. */
     double clockLatency = measureClock64Latency(numIters_);
 
-    os << "bytes,avg_access_latency\n";
+    enc_["latency.csv"] << "bytes,avg_access_latency\n";
     for (const auto& [bytes, avgLatency] : fine)
-      os << bytes << "," << (avgLatency - clockLatency) << "\n";
+      enc_["latency.csv"] << bytes << "," << (avgLatency - clockLatency) << "\n";
   }
 
  private:
+  Encoder& enc_;
   uint64_t numExperiments_;
   uint64_t multiplier_;
   uint64_t numIters_;
