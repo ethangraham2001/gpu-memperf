@@ -9,8 +9,8 @@
 #include <Benchmark.hh>
 #include "Util.hh"
 
-/* Forward declaration. */
-void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uint64_t* total_cycles);
+#include <clock64.hh>
+#include <pchase.hh>
 
 /**
  * PchaseGPUBenchmark - use the PChase algorithm to estimate GPU cache sizes
@@ -20,6 +20,16 @@ void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uin
  * have a benchmark that measures average cache latency as a means to estimate
  * the effective cache sizes of the GPUs that we work with and as a result
  * write bandwidth benchmarks that are tailored for the actual cache size.
+ *
+ * The algorithm consists of several steps.
+ * 1. A coarse sweep, starting at `startBytes_`, and multiplying the size of
+ *    the pointer chain by `multiplier_` every iteration. This unveils coarse
+ *    patterns in access latency, approximating where cache size boundaries
+ *    exist.
+ * 2. Ridge detection using the coarse grain metrics. A ridge is identified by
+ *    a `coarseThresh_` relative increase in latency between two measurements.
+ * 3. A fine-grained sweep over the regions around the ridges, providing higher
+ *    resolution metrics over the "interesting" regions.
  *
  * NOTE: it's important that the stride parameter be coprime with the number
  * of elements in the chain array. For example, assume a stride of 64 and a
@@ -67,10 +77,13 @@ class PChaseGPUBenchmark {
     }
 
     const auto results = dedupMeasurements(coarse, fine);
+    /* Measure the clock latency so that the latency measurements account only
+     * for access latency. */
+    double clockLatency = measureClock64Latency(numIters_);
 
     os << "bytes,avg_access_latency\n";
     for (const auto& [bytes, avgLatency] : fine)
-      os << bytes << "," << avgLatency << "\n";
+      os << bytes << "," << (avgLatency - clockLatency) << "\n";
   }
 
  private:
@@ -94,7 +107,7 @@ class PChaseGPUBenchmark {
 
   static void releaseChain(uint64_t* chain) { free(chain); }
 
-  /** Run a benchmark, return the total number of accesses. */
+  /** Run a single experiment, return the total number of device cycles. */
   static uint64_t runExperiment(uint64_t numIters, uint64_t stride, uint64_t numBytes) {
     if (numBytes % sizeof(uint64_t))
       throw std::runtime_error("number of bytes should be a multiple of 8 bytes");

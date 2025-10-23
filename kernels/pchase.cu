@@ -1,5 +1,4 @@
 #include <cudaHelpers.cuh>
-#include <pchase.cuh>
 
 __global__ void pchaseKernel(uint64_t* array, uint64_t iters, uint64_t* cycles) {
   uint64_t j = 0;
@@ -20,7 +19,7 @@ __global__ void pchaseKernel(uint64_t* array, uint64_t iters, uint64_t* cycles) 
     array[0] = j;
 }
 
-void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uint64_t* total_cycles) {
+void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uint64_t* totalCycles) {
   cudaError_t err;
   uint64_t* deviceArr;
   uint64_t* deviceCycles;
@@ -43,7 +42,7 @@ void launchPChaseKernel(uint64_t* array, uint64_t arraySize, uint64_t iters, uin
   err = cudaGetLastError();
   throwOnErr(err);
 
-  err = cudaMemcpy(total_cycles, deviceCycles, sizeof(uint64_t), cudaMemcpyDeviceToHost);
+  err = cudaMemcpy(totalCycles, deviceCycles, sizeof(uint64_t), cudaMemcpyDeviceToHost);
   throwOnErr(err);
 
   err = cudaFree(deviceArr);
