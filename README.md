@@ -25,7 +25,7 @@ For example, for the pchase_cpu benchmark for estimating CPU cache size, we
 could call it like:
 
 ```sh
-./gpu-memperf pcache_cpu --num_iters=10000 --multiplier=4
+./gpu-memperf pchase_cpu --num_iters=10000 --multiplier=4
 ```
 
 The full set of options, and how they should be parsed, are defined by the
