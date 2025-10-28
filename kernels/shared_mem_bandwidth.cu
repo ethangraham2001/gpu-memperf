@@ -41,7 +41,7 @@ void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32
   err = cudaEventRecord(start);
   throwOnErr(err);
 
-  // Kernel uses extern shared memory size = sharedBytes
+  /* Kernel uses extern shared memory size = sharedBytes */
   sharedMemBandwidthKernel<<<grid, block, sharedBytes>>>(numElems, numIters, 4);
 
   /* Record stop event. */
