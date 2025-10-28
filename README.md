@@ -33,6 +33,12 @@ individual benchmarks.
 
 https://github.com/ethangraham2001/gpu-memperf/blob/b4daf09a9ae45d63b5c8d4a8d58ad4c8fd50c40b/include/PchaseCPUBenchmark.hh#L33-L37
 
+## Quickstart
+
+To get started quickly, we provide a google colab notebook that sets up the benchmarks with GPU. Copy the notebook and choose the benchmarks you want to run.
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1RcWO9uD51dTs9U8HxkvwoWA2Mi_OcHut?usp=sharing)
+
 ## Opinionated Style Guide
 
 Please use `camelCase` instead of `snake_case`.
