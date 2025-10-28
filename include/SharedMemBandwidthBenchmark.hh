@@ -42,14 +42,20 @@ class SharedMemBandwidthBenchmark {
       throwOnErr(cudaDeviceGetAttribute(&maxSharedKB, cudaDevAttrMaxSharedMemoryPerBlock, device));
     const size_t maxSharedBytes = static_cast<size_t>(maxSharedKB);
 
-    for (auto bytes : sizes_) {
+    for (size_t bytes : sizes_) {
       if (bytes > maxSharedBytes) {
         enc_.log() << "Skipping size " << bytes << " (exceeds device shared memory limit)\n";
         continue;
       }
 
-      const uint32_t numElems = bytes / elemBytes_;
-      for (auto threads : threads_) {
+      const size_t numElems64 = bytes / elemBytes_;
+      if (numElems64 > std::numeric_limits<uint32_t>::max()) {
+        enc_.log() << "Skipping size " << bytes << " (element count exceeds 32-bit limit)\n";
+        continue;
+      }
+      const uint32_t numElems = static_cast<uint32_t>(numElems64);
+
+      for (size_t threads : threads_) {
         if (threads == 0)
           continue;
         if (threads > 1024)
@@ -64,8 +70,10 @@ class SharedMemBandwidthBenchmark {
           times.push_back(ms);
         }
 
-        const float avgMs = std::accumulate(times.begin(), times.end(), 0.0f) / times.size();
-        const double bytesTransferred = double(elemBytes_) * 2.0 * double(numIters_) * double(threads);
+        const float avgMs = std::accumulate(times.begin(), times.end(), 0.0f) / static_cast<float>(times.size());
+
+        const double bytesTransferred =
+            static_cast<double>(elemBytes_) * 2.0 * static_cast<double>(numIters_) * static_cast<double>(threads);
         const double bandwidthGbps = (bytesTransferred / (avgMs / 1000.0)) / 1e9;
 
         enc_["shared_mem_bandwidth.csv"] << bytes << "," << threads << "," << numIters_ << "," << reps_ << "," << avgMs
