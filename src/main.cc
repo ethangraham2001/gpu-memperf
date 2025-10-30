@@ -3,6 +3,7 @@
 #include <Benchmark.hh>
 #include <PchaseCPUBenchmark.hh>
 #include <PchaseGPUBenchmark.hh>
+#include <RandomAccessBenchmark.hh>
 #include <Util.hh>
 
 void __attribute__((noreturn)) usage() {
