@@ -1,16 +1,14 @@
 #ifndef PCHASECPUBENCHMARK_HH
 #define PCHASECPUBENCHMARK_HH
 
-#include <algorithm>
 #include <chrono>
 #include <iostream>
-#include <numeric>
-#include <random>
 #include <vector>
 
 #include <ArgParser.hh>
 #include <Benchmark.hh>
 #include <Encoder.hh>
+#include <Util.hh>
 
 static constexpr uint64_t _cachelineSize = 64;
 static constexpr uint64_t _paddingSize = 8;
@@ -55,17 +53,8 @@ class PchaseCPUBenchmark {
   uint64_t numIters;
   uint64_t startBytes;
 
-  static const std::vector<int> permutation(uint64_t n) {
-    std::vector<int> out(n);
-    std::iota(out.begin(), out.end(), 0);
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::shuffle(out.begin(), out.end(), gen);
-    return out;
-  }
-
   static const Node* generatePointerChain(uint64_t n) {
-    const auto perm = permutation(n);
+    const auto perm = util::permutation<uint64_t>(n);
     Node* nodes = (Node*)malloc(n * sizeof(Node));
     for (uint64_t i = 0; i < n - 1; i++)
       nodes[perm[i]].next = &nodes[perm[i + 1]];
