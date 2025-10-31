@@ -1,7 +1,7 @@
 NVCC := nvcc
 CXX := clang++
 
-CXXFLAGS := -std=c++20 -O3 -Wall -Wextra -Wconversion -Wshadow
+CXXFLAGS := -std=c++20 -O3
 NVCCFLAGS := $(CXXFLAGS)
 NVCCFLAGS += -Werror all-warnings
 NVCCFLAGS += -lnvidia-ml
