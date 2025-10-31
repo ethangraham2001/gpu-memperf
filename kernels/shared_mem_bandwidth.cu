@@ -24,7 +24,7 @@ __global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, u
   __syncthreads();
 }
 
-void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, size_t sharedBytes,
+void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
                                     float* elapsedMsOut) {
   cudaError_t err;
 

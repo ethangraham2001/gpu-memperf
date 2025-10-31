@@ -13,7 +13,7 @@
 #include <Util.hh>
 #include <cudaHelpers.cuh>
 
-void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, size_t sharedBytes,
+void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
                                     float* elapsedMsOut);
 
 class SharedMemBandwidthBenchmark {
@@ -40,22 +40,22 @@ class SharedMemBandwidthBenchmark {
     throwOnErr(cudaDeviceGetAttribute(&maxSharedKB, cudaDevAttrMaxSharedMemoryPerBlockOptin, device));
     if (maxSharedKB == 0)
       throwOnErr(cudaDeviceGetAttribute(&maxSharedKB, cudaDevAttrMaxSharedMemoryPerBlock, device));
-    const size_t maxSharedBytes = static_cast<size_t>(maxSharedKB);
+    const uint64_t maxSharedBytes = static_cast<uint64_t>(maxSharedKB);
 
-    for (size_t bytes : sizes_) {
+    for (uint64_t bytes : sizes_) {
       if (bytes > maxSharedBytes) {
         enc_.log() << "Skipping size " << bytes << " (exceeds device shared memory limit)\n";
         continue;
       }
 
-      const size_t numElems64 = bytes / elemBytes_;
+      const uint64_t numElems64 = bytes / elemBytes_;
       if (numElems64 > std::numeric_limits<uint32_t>::max()) {
         enc_.log() << "Skipping size " << bytes << " (element count exceeds 32-bit limit)\n";
         continue;
       }
       const uint32_t numElems = static_cast<uint32_t>(numElems64);
 
-      for (size_t threads : threads_) {
+      for (uint64_t threads : threads_) {
         if (threads == 0)
           continue;
         if (threads > 1024)
@@ -63,7 +63,7 @@ class SharedMemBandwidthBenchmark {
 
         std::vector<float> times;
         times.reserve(reps_);
-        for (size_t r = 0; r < reps_; ++r) {
+        for (uint64_t r = 0; r < reps_; ++r) {
           float ms = 0.0f;
           launchSharedMemBandwidthKernel(numElems, static_cast<uint32_t>(numIters_), static_cast<uint32_t>(threads),
                                          bytes, &ms);
@@ -84,14 +84,14 @@ class SharedMemBandwidthBenchmark {
 
  private:
   Encoder& enc_;
-  std::vector<size_t> sizes_;
-  std::vector<size_t> threads_;
+  std::vector<uint64_t> sizes_;
+  std::vector<uint64_t> threads_;
   uint64_t numIters_;
-  size_t elemBytes_;
-  size_t reps_;
+  uint64_t elemBytes_;
+  uint64_t reps_;
 
-  static std::vector<size_t> parseList(const std::string& s) {
-    std::vector<size_t> out;
+  static std::vector<uint64_t> parseList(const std::string& s) {
+    std::vector<uint64_t> out;
     std::stringstream ss(s);
     for (std::string token; std::getline(ss, token, ',');)
       if (!token.empty())
