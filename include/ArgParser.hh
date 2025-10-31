@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -52,26 +53,35 @@ class ArgParser {
       return defaultValue;
 
     if constexpr (is_vector<T>::value) {
-      using ElemType = typename T::value_type;
-      return parseList<ElemType>(*val);
-    } else if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
-      return std::stoull(*val);
-    } else if constexpr (std::is_same_v<T, double>) {
-      return std::stod(*val);
+      using Elem = typename T::value_type;
+      return parseList<Elem>(*val);
     } else {
-      return *val;  // string
+      return parseValue<T>(*val);
     }
   }
 
  private:
   std::unordered_map<std::string, std::string> args_;
 
-  /* Generic list parser */
+  /* Trait to detect std::vector<T> */
   template <typename T>
   struct is_vector : std::false_type {};
   template <typename T, typename A>
   struct is_vector<std::vector<T, A>> : std::true_type {};
 
+  /* Utility function for parsing a single value */
+  template <typename T>
+  static T parseValue(const std::string& s) {
+    if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
+      return static_cast<T>(std::stoull(s));
+    } else if constexpr (std::is_same_v<T, double>) {
+      return std::stod(s);
+    } else {
+      return s;  // string
+    }
+  }
+
+  /* Utility function for parsing a list of values */
   template <typename T>
   static std::vector<T> parseList(const std::string& s) {
     std::vector<T> result;
@@ -79,14 +89,10 @@ class ArgParser {
     std::string token;
 
     while (std::getline(ss, token, ',')) {
-      if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
-        result.push_back(std::stoull(token));
-      } else if constexpr (std::is_same_v<T, double>) {
-        result.push_back(std::stod(token));
-      } else {
-        result.push_back(token);
-      }
+      if (!token.empty())
+        result.push_back(parseValue<T>(token));
     }
+
     return result;
   }
 };
