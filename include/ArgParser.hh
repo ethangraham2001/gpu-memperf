@@ -19,6 +19,7 @@ namespace benchmark {
  * - Integers (`int`, `uint64_t`).
  * - Doubles (`double`).
  * - Strings (`const char*`, `std::string`).
+ * - Lists (`std::vector<T>` where T is a generic of the above types).
  */
 class ArgParser {
  public:
@@ -50,7 +51,10 @@ class ArgParser {
     if (!val)
       return defaultValue;
 
-    if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
+    if constexpr (is_vector<T>::value) {
+      using ElemType = typename T::value_type;
+      return parseList<ElemType>(*val);
+    } else if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
       return std::stoull(*val);
     } else if constexpr (std::is_same_v<T, double>) {
       return std::stod(*val);
@@ -61,6 +65,30 @@ class ArgParser {
 
  private:
   std::unordered_map<std::string, std::string> args_;
+
+  /* Generic list parser */
+  template <typename T>
+  struct is_vector : std::false_type {};
+  template <typename T, typename A>
+  struct is_vector<std::vector<T, A>> : std::true_type {};
+
+  template <typename T>
+  static std::vector<T> parseList(const std::string& s) {
+    std::vector<T> result;
+    std::stringstream ss(s);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+      if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
+        result.push_back(std::stoull(token));
+      } else if constexpr (std::is_same_v<T, double>) {
+        result.push_back(std::stod(token));
+      } else {
+        result.push_back(token);
+      }
+    }
+    return result;
+  }
 };
 
 };  // namespace benchmark
