@@ -4,9 +4,23 @@
 #include <cuda.h>
 #include <stdexcept>
 
-static void throwOnErr(cudaError_t err) {
-  if (err != cudaSuccess)
-    throw std::runtime_error(cudaGetErrorString(err));
-}
+#define __used __attribute__((used))
+
+#define throwOnErr(err)                                                                                        \
+  do {                                                                                                         \
+    cudaError_t e = err;                                                                                       \
+    if (e != cudaSuccess) {                                                                                    \
+      throw std::runtime_error(std::string("CUDA error at " __FILE__ ":") + std::to_string(__LINE__) + " - " + \
+                               cudaGetErrorString(e));                                                         \
+    }                                                                                                          \
+  } while (0)
+
+/**
+ * n % x == n & (x - 1) when x is a power of 2.
+ *
+ * A modulo operator is expensive in general, especially when we are trying to
+ * benchmark raw memory performance.
+ */
+#define mod_power_of_2(x) &(x - 1)
 
 #endif /* CUDAHELPERS_CUH */
