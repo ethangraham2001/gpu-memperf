@@ -22,8 +22,8 @@ class SharedMemBandwidthBenchmark {
 
   SharedMemBandwidthBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
-    sizes_ = parser.getOr("sizes", {4096, 8192, 16384, 32768, 49152});
-    threads_ = parser.getOr("threads", {32, 64, 128, 256});
+    sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768, 49152});
+    threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256});
     numIters_ = parser.getOr("num_iters", 10000UL);
     elemBytes_ = parser.getOr("elem_bytes", 4UL);
     reps_ = parser.getOr("reps", 3UL);
