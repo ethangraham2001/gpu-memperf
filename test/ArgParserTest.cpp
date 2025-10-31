@@ -6,6 +6,10 @@
 
 using namespace benchmark;
 
+constexpr const char* GREEN = "\033[32m";
+constexpr const char* RED = "\033[31m";
+constexpr const char* RESET = "\033[0m";
+
 template <typename Func>
 void runTest(const std::string& testName, Func func) {
   bool success = false;
@@ -14,19 +18,19 @@ void runTest(const std::string& testName, Func func) {
   try {
     success = func();
     if (!success)
-      error_message = "test failed";
+      error_message = "assertion error";
+  } catch (const std::runtime_error& e) {
+    success = false;
+    error_message = std::string("std::runtime_error: ") + e.what();
   } catch (const std::exception& e) {
     success = false;
-    error_message = std::string("runtime exception: ") + e.what();
-  } catch (...) {
-    success = false;
-    error_message = "unknown runtime error";
+    error_message = std::string("std::exception: ") + e.what();
   }
 
   if (success) {
-    std::cout << testName << " ✅\n";
+    std::cout << GREEN << "[PASSED]" << RESET << " " << testName << '\n';
   } else {
-    std::cout << testName << " ❌: " << error_message << "\n";
+    std::cout << RED << "[FAILED]" << RESET << " " << testName << ": " << error_message << '\n';
   }
 }
 
