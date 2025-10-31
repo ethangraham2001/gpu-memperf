@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +20,7 @@ namespace benchmark {
  * - Integers (`int`, `uint64_t`).
  * - Doubles (`double`).
  * - Strings (`const char*`, `std::string`).
+ * - Lists (`std::vector<T>` where T is a generic of the above types).
  */
 class ArgParser {
  public:
@@ -50,17 +52,49 @@ class ArgParser {
     if (!val)
       return defaultValue;
 
-    if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
-      return std::stoull(*val);
-    } else if constexpr (std::is_same_v<T, double>) {
-      return std::stod(*val);
+    if constexpr (is_vector<T>::value) {
+      using Elem = typename T::value_type;
+      return parseList<Elem>(*val);
     } else {
-      return *val;  // string
+      return parseValue<T>(*val);
     }
   }
 
  private:
   std::unordered_map<std::string, std::string> args_;
+
+  /* Trait to detect std::vector<T> */
+  template <typename T>
+  struct is_vector : std::false_type {};
+  template <typename T, typename A>
+  struct is_vector<std::vector<T, A>> : std::true_type {};
+
+  /* Utility function for parsing a single value */
+  template <typename T>
+  static T parseValue(const std::string& s) {
+    if constexpr (std::is_same_v<T, int> || std::is_same_v<T, uint64_t>) {
+      return static_cast<T>(std::stoull(s));
+    } else if constexpr (std::is_same_v<T, double>) {
+      return std::stod(s);
+    } else {
+      return s;  // string
+    }
+  }
+
+  /* Utility function for parsing a list of values */
+  template <typename T>
+  static std::vector<T> parseList(const std::string& s) {
+    std::vector<T> result;
+    std::stringstream ss(s);
+    std::string token;
+
+    while (std::getline(ss, token, ',')) {
+      if (!token.empty())
+        result.push_back(parseValue<T>(token));
+    }
+
+    return result;
+  }
 };
 
 };  // namespace benchmark
