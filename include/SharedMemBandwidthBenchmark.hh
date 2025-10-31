@@ -22,8 +22,8 @@ class SharedMemBandwidthBenchmark {
 
   SharedMemBandwidthBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
-    sizes_ = parseList(parser.getOr("sizes", std::string("4096,8192,16384,32768,49152")));
-    threads_ = parseList(parser.getOr("threads", std::string("32,64,128,256")));
+    sizes_ = parser.getOr("sizes", {4096, 8192, 16384, 32768, 49152});
+    threads_ = parser.getOr("threads", {32, 64, 128, 256});
     numIters_ = parser.getOr("num_iters", 10000UL);
     elemBytes_ = parser.getOr("elem_bytes", 4UL);
     reps_ = parser.getOr("reps", 3UL);
@@ -89,17 +89,6 @@ class SharedMemBandwidthBenchmark {
   uint64_t numIters_;
   uint64_t elemBytes_;
   uint64_t reps_;
-
-  static std::vector<uint64_t> parseList(const std::string& s) {
-    std::vector<uint64_t> out;
-    std::stringstream ss(s);
-    for (std::string token; std::getline(ss, token, ',');)
-      if (!token.empty())
-        out.push_back(std::stoull(token));
-    if (out.empty())
-      out.push_back(4096);
-    return out;
-  }
 };
 
 inline bool sharedMemBandwidthRegistered = []() {
