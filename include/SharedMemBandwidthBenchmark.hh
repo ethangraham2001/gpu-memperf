@@ -11,7 +11,7 @@
 #include <ArgParser.hh>
 #include <Benchmark.hh>
 #include <Util.hh>
-#include "cudaHelpers.cuh"
+#include <cudaHelpers.cuh>
 
 void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, size_t sharedBytes,
                                     float* elapsedMsOut);
