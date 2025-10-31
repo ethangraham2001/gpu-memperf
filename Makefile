@@ -1,9 +1,10 @@
 NVCC := nvcc
 CXX := clang++
 
-CXXFLAGS := -std=c++20 -O3 -Wall -Wextra -Wconversion -Wshadow
+CXXFLAGS := -std=c++20 -O3
 NVCCFLAGS := $(CXXFLAGS)
 NVCCFLAGS += -Werror all-warnings
+NVCCFLAGS += -Xcompiler "-Wall,-Wextra,-Wconversion,-Wshadow"
 NVCCFLAGS += -Xcompiler "-Wno-unused-parameter"  # Often unavoidable in CUDA
 INCLUDES := -I./include
 
