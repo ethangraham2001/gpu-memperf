@@ -1,5 +1,5 @@
 NVCC := nvcc
-CXX := clang++
+CXX := g++
 
 CXXFLAGS := -std=c++20 -O3
 NVCCFLAGS := $(CXXFLAGS)
