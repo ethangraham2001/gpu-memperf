@@ -76,6 +76,12 @@ jobs:
           # Ensure warnings are treated as errors
           CXXFLAGS: "-Werror"
           NVCCFLAGS: "-Werror all-warnings"
+
+      - name: Run tests
+        run: |
+          make test
+        env:
+          CXXFLAGS: "-Werror"
       
       - name: Check build artifacts
         run: |

@@ -1,4 +1,5 @@
 gpu-memperf
+test-memperf
 *.o
 *.csv
 .cache
