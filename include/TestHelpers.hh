@@ -1,3 +1,6 @@
+#ifndef TEST_HELPERS_HH
+#define TEST_HELPERS_HH
+
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -9,7 +12,7 @@ constexpr const char* RED = "\033[31m";
 constexpr const char* RESET = "\033[0m";
 
 /* Test runner function */
-bool runTest(const std::string& testName, const std::function<bool()>& func) {
+inline bool runTest(const std::string& testName, const std::function<bool()>& func) {
   bool success = false;
   std::string error_message;
 
@@ -32,3 +35,5 @@ bool runTest(const std::string& testName, const std::function<bool()>& func) {
 
   return success;
 }
+
+#endif /* TEST_HELPERS_HH */
