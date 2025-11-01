@@ -1,6 +1,8 @@
 #include <cuda.h>
+#include <nvml.h>
 
 #include <cudaHelpers.cuh>
+#include <stdexcept>
 
 __global__ void clock64OverheadKernel(uint64_t iters, uint64_t* cycles) {
   uint64_t total = 0;
@@ -46,4 +48,20 @@ double measureClock64Latency(uint64_t iters) {
   throwOnErr(err);
 
   return (double)hCycles / ((double)iters * 2.0);
+}
+
+unsigned int getMaxClockFrequencyHz() {
+  nvmlInit();
+  nvmlDevice_t dev;
+  nvmlReturn_t ret = nvmlDeviceGetHandleByIndex(0, &dev);
+  if (ret != NVML_SUCCESS)
+    throw std::runtime_error("Unable to find device");
+
+  unsigned int clockMHz;
+  ret = nvmlDeviceGetMaxClockInfo(dev, NVML_CLOCK_SM, &clockMHz);
+  if (ret != NVML_SUCCESS)
+    throw std::runtime_error("Unable to read device's clock frequency");
+
+  nvmlShutdown();
+  return clockMHz * 1000000U;
 }
