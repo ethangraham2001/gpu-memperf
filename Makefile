@@ -1,6 +1,7 @@
 NVCC := nvcc
 NVCCFLAGS := -std=c++20 -O3
 NVCCFLAGS += -Werror all-warnings
+NVCCFLAGS += -lnvidia-ml
 NVCCFLAGS += -Xcompiler "-Wall,-Wextra,-Wconversion,-Wshadow"
 NVCCFLAGS += -Xcompiler "-Wno-unused-parameter"  # Often unavoidable in CUDA
 INCLUDES := -I./include
