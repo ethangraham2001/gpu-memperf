@@ -25,7 +25,12 @@ For example, for the pchase_cpu benchmark for estimating CPU cache size, we
 could call it like:
 
 ```sh
-./gpu-memperf pchase_cpu --num_iters=10000 --multiplier=4
+./gpu-memperf pchase_cpu --num_iters=10000 --multiplier=2
+```
+
+To run on the student cluster using the NVidia RTX 5060 Ti GPU, with benchmark default arguments, we could call it like:
+```sh
+srun -A dphpc --gpus 5060ti:1 ./gpu-memperf pchase_cpu
 ```
 
 The full set of options, and how they should be parsed, are defined by the
