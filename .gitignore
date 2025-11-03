@@ -5,3 +5,5 @@ test-memperf
 .cache
 .local
 compile_commands.json
+.vscode
+pchase_cpu_??_??_??
