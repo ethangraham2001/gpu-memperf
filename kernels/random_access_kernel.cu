@@ -31,6 +31,31 @@ __device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
   }
 }
 
+template <typename T>
+__device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f8)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f64)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  }
+}
+
 /**
  * l2LoadElem - inline PTX for loading an element from L2 cache
  *
@@ -293,6 +318,14 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaEventCreate(&evStop));
   throwOnErr(cudaEventRecord(evStart));
 
+
+  // Initialize events for timing
+  cudaEvent_t evStart, evStop;
+  throwOnErr(cudaEventCreate(&evStart));
+  throwOnErr(cudaEventCreate(&evStop));
+  throwOnErr(cudaEventRecord(evStart));
+
+
   auto kernel = getKernel<T>(mode);
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
       dData, dIndices, numElems, numAccesses, dSink);
@@ -305,11 +338,13 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaEventDestroy(evStart));
   throwOnErr(cudaEventDestroy(evStop));
 
+  // throwOnErr(cudaDeviceSynchronize());
   throwOnErr(cudaGetLastError());
 
   cudaFree(dData);
   cudaFree(dIndices);
   cudaFree(dSink);
+  cudaFree(dSharedCycles);  // free this too
 
   /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
   uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
