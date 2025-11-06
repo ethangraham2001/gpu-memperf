@@ -1,6 +1,6 @@
-#include <vector>
-
 #include <cuda.h>
+#include <cassert>
+#include <vector>
 
 #include <Types.hh>
 #include <cudaHelpers.cuh>
@@ -126,6 +126,8 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
                                                                     const std::vector<uint32_t>& indices,
                                                                     uint64_t numAccesses, uint64_t threadsPerBlock,
                                                                     uint64_t numBlocks, randomAccessKernel::mode mode) {
+  assert(isPowerOf2(data.size()));
+
   uint64_t* dTimingResults;
   uint64_t* dSharedCycles;
   uint32_t* dIndices;
