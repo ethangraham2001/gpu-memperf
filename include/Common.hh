@@ -11,6 +11,7 @@ static const constexpr uint64_t MiB = 1UL << 20;
 static const constexpr uint64_t GiB = 1UL << 30;
 
 static const constexpr uint64_t threadsPerWarp = 32UL;
+static const constexpr uint64_t maxThreadsPerBlock = 1024UL;
 };  // namespace common
 
 #endif /* COMMON_HH */
