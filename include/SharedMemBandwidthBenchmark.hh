@@ -10,7 +10,7 @@
 #include <Benchmark.hh>
 #include <Util.hh>
 
-/** 
+/**
  * Launch the shared memory bandwidth kernel.
  *
  * @param numElems Number of 32-bit words in shared memory, must be power of two.
