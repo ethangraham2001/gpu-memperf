@@ -31,17 +31,17 @@ class SharedMemBandwidthBenchmark {
     benchmark::ArgParser parser(args);
     sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768, 49152});
     threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256});
-    numIters_ = parser.getOr("num_iters", 10000UL);
-    elemBytes_ = 4UL;
-    reps_ = parser.getOr("reps", 3UL);
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
+    elemBytes_ = 4UL;
+    numIters_ = parser.getOr("num_iters", 10000UL);
+    reps_ = parser.getOr("reps", 3UL);
     warmupIters_ = parser.getOr("warmup_iters", 256UL);
   }
 
   std::string name() const { return benchmarkName; }
 
   void run() {
-    enc_["shared_mem_bandwidth.csv"] << "bytes,threads,iters,reps,stride,timeMs,bandwidthGBps\n";
+    enc_["shared_mem_bandwidth.csv"] << "bytes,threads,stride,iters,timeMs,bandwidthGBps\n";
 
     for (uint64_t bytes : sizes_) {
       const uint64_t numElems64 = bytes / elemBytes_;
@@ -72,8 +72,8 @@ class SharedMemBandwidthBenchmark {
                                           static_cast<double>(numIters_) * static_cast<double>(threads);
           const double bandwidthGBps = (bytesTransferred / (avgMs / 1000.0)) / 1e9;
 
-          enc_["shared_mem_bandwidth.csv"] << bytes << "," << threads << "," << numIters_ << "," << reps_ << ","
-                                           << stride << "," << avgMs << "," << bandwidthGBps << "\n";
+          enc_["shared_mem_bandwidth.csv"] << bytes << "," << threads << "," << stride << "," << numIters_ << ","
+                                           << avgMs << "," << bandwidthGBps << "\n";
         }
       }
     }
