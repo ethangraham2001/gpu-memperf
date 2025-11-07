@@ -3,7 +3,6 @@
 #include <Benchmark.hh>
 #include <PchaseCPUBenchmark.hh>
 #include <PchaseGPUBenchmark.hh>
-#include <SharedMemBandwidthBenchmark.hh>
 #include <RandomAccessBenchmark.hh>
 #include <SharedMemBandwidthBenchmark.hh>
 #include <Util.hh>
