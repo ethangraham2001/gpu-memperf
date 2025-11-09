@@ -31,60 +31,27 @@ __device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
   }
 }
 
+/**
+ * l2LoadElem - inline PTX for loading an element from L2 cache.
+ *
+ * @addr: pointer to element in data array
+ * @sink: accumulator to prevent compiler optimization
+ */
 template <typename T>
-__device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
-  if constexpr (sizeof(T) == sizeof(types::f8)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+__device__ __forceinline__ void l2LoadElem(T* addr, T& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.cg.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
+                 : "+f"(sink)
                  : "l"(addr)
                  : "memory");
   } else if constexpr (sizeof(T) == sizeof(types::f64)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+    asm volatile("{\t\n .reg .f64 data_reg;\n\t ld.global.cg.f64 data_reg, [%1];\n\t add.f64 %0, %0, data_reg;\n\t }"
+                 : "+d"(sink)
                  : "l"(addr)
                  : "memory");
   }
 }
 
-/**
- * l2LoadElem - inline PTX for loading an element from L2 cache
- *
- * Using cg (cache global) modifier to bypass L1 cache.
- */
-template <typename T>
-__device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
-  if constexpr (sizeof(T) == sizeof(types::f8)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f64)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  }
-}
 
 /**
  * dramLoadElem - inline PTX for loading an element from DRAM
@@ -92,25 +59,15 @@ __device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
  * Using cv (cache volatile) modifier to bypass all caches.
  */
 template <typename T>
-__device__ __forceinline__ void dramLoadElem(T* addr, uint64_t& sink) {
-  if constexpr (sizeof(T) == sizeof(types::f8)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+__device__ __forceinline__ void dramLoadElem(T* addr, T& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.cg.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
+                 : "+f"(sink)
                  : "l"(addr)
                  : "memory");
   } else if constexpr (sizeof(T) == sizeof(types::f64)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+    asm volatile("{\t\n .reg .f64 data_reg;\n\t ld.global.cg.f64 data_reg, [%1];\n\t add.f64 %0, %0, data_reg;\n\t }"
+                 : "+d"(sink)
                  : "l"(addr)
                  : "memory");
   }
@@ -181,23 +138,10 @@ __global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t 
                                            uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  
+
   /* Shared memory to ensure that exactly one copy of each of these exists. */
   __shared__ uint64_t sharedStart, sharedEnd;
-  uint64_t localSink = 0;
-
-  /* Warm the cache. */
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l1LoadElem(&data[idx], localSink);
-  }
-
-  /* Sync on both ends of launching the timer for best accuracy - we don't want
-   * any threads to begin accessing data until the timer has started. */
-  __syncthreads();
-  if (threadIdx.x == 0)
-    sharedStart = clock64();
-  __syncthreads();
+  T localSink = 0;
 
   uint64_t start = clock64();
   for (uint64_t i = 0; i < numAccesses; i++) {
@@ -205,14 +149,6 @@ __global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t 
     l1LoadElem(&data[idx], localSink);
   }
   uint64_t end = clock64();
-
-  /* Sync before stopping the global timer. Similarly to above, we don't want to
-   * be stopping the timer until all threads have finished their work. */
-  __syncthreads();
-  if (threadIdx.x == 0) {
-    sharedEnd = clock64();
-    *totalCycles = sharedEnd - sharedStart;
-  }
 
   results[tid] = end - start;
   sink[tid] = localSink;
@@ -236,6 +172,9 @@ using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t,
  * @mode: cache mode
  * @return: function pointer to the selected kernel
  */
+template <typename T>
+using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
+
 template <typename T>
 static randomAccessKernelFunc<T> getKernel(randomAccessKernel::mode mode) {
   switch (mode) {
@@ -285,7 +224,6 @@ template <typename T>
 uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<uint32_t>& indices,
                                   uint64_t numAccesses, uint64_t threadsPerBlock, uint64_t numBlocks,
                                   randomAccessKernel::mode mode) {
-
   uint64_t numElems = data.size();
   uint64_t numIndices = indices.size();
   assert(isPowerOf2(numElems));
@@ -318,13 +256,18 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaEventCreate(&evStop));
   throwOnErr(cudaEventRecord(evStart));
 
+  auto warmupKernel = getWarmupKernel<T>(mode);
+  if (warmupKernel) {
+    warmupKernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
+        dData, dIndices, data.size(), numAccesses, dSink);
+    throwOnErr(cudaDeviceSynchronize());
+  }
 
-  // Initialize events for timing
+  /* Initialize events for timing */
   cudaEvent_t evStart, evStop;
   throwOnErr(cudaEventCreate(&evStart));
   throwOnErr(cudaEventCreate(&evStop));
   throwOnErr(cudaEventRecord(evStart));
-
 
   auto kernel = getKernel<T>(mode);
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
@@ -338,13 +281,12 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaEventDestroy(evStart));
   throwOnErr(cudaEventDestroy(evStop));
 
-  // throwOnErr(cudaDeviceSynchronize());
   throwOnErr(cudaGetLastError());
 
   cudaFree(dData);
   cudaFree(dIndices);
   cudaFree(dSink);
-  cudaFree(dSharedCycles);  // free this too
+  cudaFree(dSharedCycles);
 
   /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
   uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
