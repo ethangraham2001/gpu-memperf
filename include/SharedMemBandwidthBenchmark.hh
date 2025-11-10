@@ -18,10 +18,11 @@
  * @param threads Threads per block.
  * @param sharedBytes Size in bytes of the extern shared memory.
  * @param stride Stride in words used to create bank conflict patterns.
+ * @param mode 0=read, 1=write, 2=read+write.
  * @param elapsedMsOut Returned elapsed milliseconds for measured kernel.
  */
 void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                    uint32_t stride, float* elapsedMsOut);
+                                    uint32_t stride, uint32_t mode, float* elapsedMsOut);
 
 class SharedMemBandwidthBenchmark {
  public:
@@ -34,8 +35,7 @@ class SharedMemBandwidthBenchmark {
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
     elemBytes_ = 4UL;
     numIters_ = parser.getOr("num_iters", 10000UL);
-    reps_ = parser.getOr("reps", 3UL);
-    warmupIters_ = parser.getOr("warmup_iters", 256UL);
+    mode_ = parser.getOr("mode", 0UL); /* 0=read, 1=write, 2=read+write. */
   }
 
   std::string name() const { return benchmarkName; }
@@ -63,11 +63,11 @@ class SharedMemBandwidthBenchmark {
           for (uint64_t r = 0; r < reps_; ++r) {
             float ms = 0.0f;
             launchSharedMemBandwidthKernel(numElems, static_cast<uint32_t>(numIters_), static_cast<uint32_t>(threads),
-                                           bytes, static_cast<uint32_t>(stride), &ms);
+                                           bytes, static_cast<uint32_t>(stride), static_cast<uint32_t>(mode_), &ms);
             times.push_back(ms);
           }
           const float avgMs = std::accumulate(times.begin(), times.end(), 0.0f) / static_cast<float>(times.size());
-          const double transfersPerIter = 2.0;
+          const double transfersPerIter = (mode_ == 2) ? 2.0 : 1.0; /* mode 2: read+write */
           const double bytesTransferred = static_cast<double>(elemBytes_) * transfersPerIter *
                                           static_cast<double>(numIters_) * static_cast<double>(threads);
           const double bandwidthGBps = (bytesTransferred / (avgMs / 1000.0)) / 1e9;
@@ -87,7 +87,7 @@ class SharedMemBandwidthBenchmark {
   uint64_t elemBytes_;
   uint64_t reps_;
   std::vector<uint64_t> strides_;
-  uint64_t warmupIters_;
+  uint64_t mode_;
 };
 
 inline bool sharedMemBandwidthRegistered = []() {

@@ -1,7 +1,7 @@
 #include <cuda_runtime.h>
 #include "cudaHelpers.cuh"
 
-__global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t stride) {
+__global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t stride, uint32_t mode) {
   extern __shared__ uint32_t sharedMem[];
   const uint32_t tid = threadIdx.x;
   uint32_t tmp = 0u;
@@ -13,13 +13,23 @@ __global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, u
   }
   __syncthreads();
 
-  /* Measured loop performs one read and one write with given stride. */
+  /* Loop over shared memory with given stride. */
   for (uint32_t i = 0; i < numIters; ++i) {
     uint32_t offset = ((tid * stride) + i) & mask;
     uint32_t val = sharedMem[offset];
-    uint32_t dst = (offset + (blockDim.x >> 1)) & mask;
-    sharedMem[dst] = val + 1u;
-    tmp += val;
+
+    if (mode == 0) {
+      /* Read-only. */
+      tmp += sharedMem[offset];
+    } else if (mode == 1) {
+      /* Write-only. */
+      sharedMem[dst] = tid + i;
+    } else {
+      /* Read + write. */
+      uint32_t val = sharedMem[offset];
+      sharedMem[dst] = val + 1u;
+      tmp += val;
+    }
   }
 
   /* Prevent compiler optimiziation. */
@@ -30,7 +40,7 @@ __global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, u
 }
 
 void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                    uint32_t stride, float* elapsedMsOut) {
+                                    uint32_t stride, uint32_t mode, float* elapsedMsOut) {
   cudaError_t err;
 
   cudaEvent_t start, stop;
@@ -39,11 +49,11 @@ void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32
   err = cudaEventCreate(&stop);
   throwOnErr(err);
 
-  const dim3 grid(1);
   const dim3 block(threads);
 
   /* Warmup launch. */
-  sharedMemBandwidthKernel<<<grid, block, sharedBytes>>>(numElems, 256, stride);
+  const uint32_t warmupIters_ = 256;
+  sharedMemBandwidthKernel<<<1, block, sharedBytes>>>(numElems, warmupIters_, stride);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
 
@@ -52,7 +62,7 @@ void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32
   throwOnErr(err);
 
   /* Kernel uses extern shared memory size = sharedBytes. */
-  sharedMemBandwidthKernel<<<grid, block, sharedBytes>>>(numElems, numIters, stride);
+  sharedMemBandwidthKernel<<<1, block, sharedBytes>>>(numElems, numIters, stride);
 
   /* Record stop event. */
   err = cudaEventRecord(stop);
