@@ -35,6 +35,7 @@ class SharedMemBandwidthBenchmark {
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
     elemBytes_ = 4UL;
     numIters_ = parser.getOr("num_iters", 10000UL);
+    reps_ = parser.getOr("reps", 3UL);
     mode_ = parser.getOr("mode", 0UL); /* 0=read, 1=write, 2=read+write. */
   }
 
