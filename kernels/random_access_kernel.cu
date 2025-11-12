@@ -80,7 +80,8 @@ __device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
  * @sink: accumulator to prevent optimization
  */
 template <typename T>
-__global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses, uint64_t* sink) {
+__global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
   uint64_t localSink = 0;
@@ -101,7 +102,8 @@ __global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t 
  * @sink: accumulator to prevent optimization
  */
 template <typename T>
-__global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses, uint64_t* sink) {
+__global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
   uint64_t localSink = 0;
@@ -280,12 +282,12 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
 
   /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
   uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
-  
+
   std::vector<uint64_t> result(totalThreads);
   for (uint64_t i = 0; i < totalThreads; i++)
     result[i] = hTimingResults[i];
   free(hTimingResults);
-  
+
   return {hSharedCycles, result};
 }
 

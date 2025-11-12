@@ -28,7 +28,7 @@ static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
 
 static const constexpr uint64_t sensibleNumBlocks[MODES_SIZE] = {
     1,  /* L1. */
-    64, /* L2. TODO: figure out what this should be. */
+    64, /* L2. Gave the highest and most stable L2 bandwidth without unnecessary scheduling overhead */
     10, /* DRAM. TODO: figure out what this should be. */
 };
 
