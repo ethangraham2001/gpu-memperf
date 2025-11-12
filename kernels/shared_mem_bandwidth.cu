@@ -61,6 +61,8 @@ void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32
 
   /* Kernel uses extern shared memory size = sharedBytes. */
   sharedMemBandwidthKernel<<<1, block, sharedBytes>>>(numElems, numIters, stride, mode, cycle);
+  err = cudaDeviceSynchronize();
+  throwOnErr(err);
 
   err = cudaGetLastError();
   throwOnErr(err);
