@@ -107,7 +107,7 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
   }
 
   double cyclesToBandwidth(uint64_t cycles, uint64_t numWarps) {
-    uint64_t bytesAccessed = numWarps * common::threadsPerWarp * accessesPerThread_ * sizeof(DataType);
+    uint64_t bytesAccessed = numBlocks_ * numWarps * common::threadsPerWarp * accessesPerThread_ * sizeof(DataType);
     double seconds = (double)cycles / (double)clockFreq_;
     return (double)bytesAccessed / seconds;
   }

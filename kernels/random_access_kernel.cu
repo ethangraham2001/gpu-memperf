@@ -6,6 +6,8 @@
 #include <cudaHelpers.cuh>
 #include <random_access_kernel.hh>
 
+#include <clock64.hh>
+
 /**
  * l1LoadElem - inline PTX for loading an element from L1 cache
  *
@@ -38,6 +40,81 @@ __device__ __forceinline__ void l1LoadElem(T* addr, uint64_t& sink) {
 }
 
 /**
+ * l2LoadElem - inline PTX for loading an element from L2 cache.
+ *
+ * @addr: pointer to element in data array
+ * @sink: accumulator to prevent compiler optimization
+ */
+template <typename T>
+__device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f8)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f64)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cg.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  }
+}
+
+/**
+ * randomAccessKernelL1Warmup - warmup kernel to prime L1 cache before measurement.
+ *
+ * @data: data array
+ * @indices: random index array
+ * @numElems: number of elements in data/indices
+ * @numAccesses: number of accesses per thread
+ * @sink: accumulator to prevent optimization
+ */
+template <typename T>
+__global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           uint64_t* sink) {
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  uint64_t totalThreads = gridDim.x * blockDim.x;
+  uint64_t localSink = 0;
+  for (uint64_t i = 0; i < numAccesses; i++) {
+    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
+    l1LoadElem(&data[idx], localSink);
+  }
+  sink[tid] = localSink;
+}
+
+/**
+ * randomAccessKernelL2Warmup - warmup kernel to prime L2 cache before measurement.
+ *
+ * @data: data array
+ * @indices: random index array
+ * @numElems: number of elements in data/indices
+ * @numAccesses: number of accesses per thread
+ * @sink: accumulator to prevent optimization
+ */
+template <typename T>
+__global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           uint64_t* sink) {
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  uint64_t totalThreads = gridDim.x * blockDim.x;
+  uint64_t localSink = 0;
+  for (uint64_t i = 0; i < numAccesses; i++) {
+    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
+    l2LoadElem(&data[idx], localSink);
+  }
+  sink[tid] = localSink;
+}
+
+/**
  * randomAccessKernelL1 - L1 random access bandwidth measurement kernel
  *
  * The host must provide some set of random indices with the same cardinality as
@@ -60,22 +137,11 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
                                      uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  /* Shared memory to ensure that exactly one copy of each of these exists. */
-  __shared__ uint64_t sharedStart, sharedEnd;
   uint64_t localSink = 0;
 
-  /* Warm the cache. */
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l1LoadElem(&data[idx], localSink);
-  }
-
-  /* Sync on both ends of launching the timer for best accuracy - we don't want
-   * any threads to begin accessing data until the timer has started. */
-  __syncthreads();
-  if (threadIdx.x == 0)
-    sharedStart = clock64();
-  __syncthreads();
+  // TODO: remove comments below (just for info about changes)
+  // warmup removed - done via separate kernel
+  // sync removed - not needed anymore
 
   uint64_t start = clock64();
   for (uint64_t i = 0; i < numAccesses; i++) {
@@ -84,21 +150,42 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
   }
   uint64_t end = clock64();
 
-  /* Sync before stopping the global timer. Similarly to above, we don't want to
-   * be stopping the timer until all threads have finished their work. */
-  __syncthreads();
-  if (threadIdx.x == 0) {
-    sharedEnd = clock64();
-    *totalCycles = sharedEnd - sharedStart;
-  }
-
   results[tid] = end - start;
   sink[tid] = localSink;
 }
 
+/**
+ * randomAccessKernelL2 - L2 random access bandwidth measurement kernel.
+ *
+ * @data: data array
+ * @indices: random index array
+ * @numElems: cardinality of @data and @indices
+ * @numAccesses: number of accesses per thread
+ * @results: cycles per thread
+ * @totalCycles: unused after event timing (kept for compatibility)
+ * @sink: accumulator to prevent optimization
+ */
 template <typename T>
 __global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                     uint64_t* results, uint64_t* sharedCycles, uint64_t* sink) { /* TODO */ }
+                                     uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  uint64_t totalThreads = gridDim.x * blockDim.x;
+  uint64_t localSink = 0;
+
+  // TODO: remove comments below (just for info about changes)
+  // warmup removed - done via separate kernel
+  // sync removed - not needed anymore
+
+  uint64_t start = clock64();
+  for (uint64_t i = 0; i < numAccesses; i++) {
+    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
+    l2LoadElem(&data[idx], localSink);
+  }
+  uint64_t end = clock64();
+
+  results[tid] = end - start;
+  sink[tid] = localSink;
+}
 
 template <typename T>
 __global__ void randomAccessKernelDRAM(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
@@ -106,6 +193,9 @@ __global__ void randomAccessKernelDRAM(T* data, uint32_t* indices, uint64_t numE
 
 template <typename T>
 using randomAccessKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*, uint64_t*, uint64_t*);
+
+template <typename T>
+using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
 
 template <typename T>
 static randomAccessKernelFunc<T> getKernel(randomAccessKernel::mode mode) {
@@ -118,6 +208,18 @@ static randomAccessKernelFunc<T> getKernel(randomAccessKernel::mode mode) {
       return randomAccessKernelDRAM<T>;
     default:
       throw std::invalid_argument("invalid mode");
+  }
+}
+
+template <typename T>
+static randomAccessWarmupKernelFunc<T> getWarmupKernel(randomAccessKernel::mode mode) {
+  switch (mode) {
+    case randomAccessKernel::L1_CACHE:
+      return randomAccessKernelL1Warmup<T>;
+    case randomAccessKernel::L2_CACHE:
+      return randomAccessKernelL2Warmup<T>;
+    default:
+      throw std::invalid_argument("getWarmupKernel: invalid mode");
   }
 }
 
@@ -150,27 +252,48 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
   throwOnErr(cudaMalloc(&dTimingResults, totalThreads * sizeof(uint64_t)));
   throwOnErr(cudaMalloc(&dSharedCycles, sizeof(uint64_t)));
 
+  auto warmupKernel = getWarmupKernel<T>(mode);
+  if (warmupKernel) {
+    warmupKernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
+        dData, dIndices, data.size(), numAccesses, dSink);
+    throwOnErr(cudaDeviceSynchronize());
+  }
+
+  /* Initialize events for timing */
+  cudaEvent_t evStart, evStop;
+  throwOnErr(cudaEventCreate(&evStart));
+  throwOnErr(cudaEventCreate(&evStop));
+  throwOnErr(cudaEventRecord(evStart));
+
   auto kernel = getKernel<T>(mode);
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
       dData, dIndices, numElems, numAccesses, dTimingResults, dSharedCycles, dSink);
 
-  throwOnErr(cudaDeviceSynchronize());
+  // Measure using multiple SM blocks (host-side)
+  throwOnErr(cudaEventRecord(evStop));
+  throwOnErr(cudaEventSynchronize(evStop));
+  float ms = 0.0f;
+  throwOnErr(cudaEventElapsedTime(&ms, evStart, evStop));
+  throwOnErr(cudaEventDestroy(evStart));
+  throwOnErr(cudaEventDestroy(evStop));
 
   throwOnErr(cudaGetLastError());
 
   uint64_t* hTimingResults = static_cast<uint64_t*>(malloc(threadsPerBlock * numBlocks * sizeof(uint64_t)));
   throwOnErr(cudaMemcpy(hTimingResults, dTimingResults, totalThreads * sizeof(uint64_t), cudaMemcpyDeviceToHost));
-
-  uint64_t hSharedCycles;
-  throwOnErr(cudaMemcpy(&hSharedCycles, dSharedCycles, sizeof(uint64_t), cudaMemcpyDeviceToHost));
-
   cudaFree(dData);
   cudaFree(dTimingResults);
   cudaFree(dSink);
+  cudaFree(dSharedCycles);
+
+  /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
+  uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
 
   std::vector<uint64_t> result(totalThreads);
   for (uint64_t i = 0; i < totalThreads; i++)
     result[i] = hTimingResults[i];
+  free(hTimingResults);
+
   return {hSharedCycles, result};
 }
 
