@@ -6,4 +6,4 @@ test-memperf
 .local
 compile_commands.json
 .vscode
-pchase_cpu_??_??_??
+logs/*

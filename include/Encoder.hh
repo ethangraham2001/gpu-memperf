@@ -82,7 +82,7 @@ class Encoder {
     auto time = std::chrono::system_clock::to_time_t(now);
     char buf[100];
     std::strftime(buf, sizeof(buf), "%H_%M_%S", std::localtime(&time));
-    return benchName + "_" + buf;
+    return "logs/" + benchName + "_" + buf;
   }
 };
 
