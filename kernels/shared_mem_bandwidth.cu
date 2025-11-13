@@ -2,68 +2,84 @@
 #include <clock64.hh>
 #include <cudaHelpers.cuh>
 
-__global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t stride, uint32_t mode,
-                                         uint64_t* cycle) {
-  extern __shared__ uint32_t sharedMem[];
+template <int MODE>
+__global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t stride, uint64_t* cycle) {
   const uint32_t tid = threadIdx.x;
-  uint32_t tmp = 0u;
   const uint32_t mask = numElems - 1u;
 
-  /* Initialize shared memory to avoid compiler optimizations and broadcasts. */
-  for (uint32_t idx = tid; idx < numElems; idx += blockDim.x) {
-    sharedMem[idx] = idx;
+  extern __shared__ uint32_t sharedMem[];
+  uint32_t tmp = 0u;
+
+  for (uint32_t i = tid; i < numElems; i += blockDim.x) {
+    sharedMem[i] = i;
   }
   __syncthreads();
 
-  uint64_t start = clock64();
+  uint64_t start = 0, end = 0;
 
-  /* Loop over shared memory with given stride. */
+  if (tid == 0)
+    start = clock64();
+
   for (uint32_t i = 0; i < numIters; ++i) {
-    uint32_t offset = ((tid * stride) + i) & mask;
-    uint32_t dst = (offset + (blockDim.x >> 1)) & mask;
+    uint32_t offset = ((tid + i) * stride) & mask;
 
-    if (mode == 0) {
-      /* Read-only. */
+    if constexpr (MODE == 0) {
       tmp += sharedMem[offset];
-    } else if (mode == 1) {
-      /* Write-only. */
-      sharedMem[dst] = tid + i;
+    } else if constexpr (MODE == 1) {
+      sharedMem[offset] = tid + i;
     } else {
-      /* Read + write. */
-      uint32_t val = sharedMem[offset];
-      sharedMem[dst] = val + 1u;
-      tmp += val;
+      uint64_t v = sharedMem[offset];
+      sharedMem[offset] = v + 1;
     }
   }
 
-  uint64_t end = clock64();
-
-  /* Prevent compiler optimiziation. */
+  /* Prevent compiler optimization. */
   if (tmp == 0xFFFFFFFFu) {
     sharedMem[0] = tmp;
   }
   __syncthreads();
 
-  *cycle = end - start;
+  if (tid == 0) {
+    end = clock64();
+    *cycle = end - start;
+  }
 }
 
-void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                    uint32_t stride, uint32_t mode, uint64_t* cycle) {
+template <int MODE>
+void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes, uint32_t stride,
+                  uint64_t* cycle) {
   cudaError_t err;
   const dim3 block(threads);
+  const uint32_t warmupIters = 256;
+  uint64_t warmupCycle = 0;
 
   /* Warmup launch. */
-  uint64_t warmupCycle = 0;
-  const uint32_t warmupIters_ = 256;
-  sharedMemBandwidthKernel<<<1, block, sharedBytes>>>(numElems, warmupIters_, stride, mode, &warmupCycle);
+  sharedMemBandwidthKernel<MODE><<<1, block, sharedBytes>>>(numElems, warmupIters, stride, &warmupCycle);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
 
   /* Kernel uses extern shared memory size = sharedBytes. */
-  sharedMemBandwidthKernel<<<1, block, sharedBytes>>>(numElems, numIters, stride, mode, cycle);
+  sharedMemBandwidthKernel<MODE><<<1, block, sharedBytes>>>(numElems, numIters, stride, cycle);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
 
   err = cudaGetLastError();
   throwOnErr(err);
+}
+
+void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
+                                    uint32_t stride, uint32_t mode, uint64_t* cycle) {
+  switch (mode) {
+    case 0:
+      launchKernel<0>(numElems, numIters, threads, sharedBytes, stride, cycle);
+      break;
+    case 1:
+      launchKernel<1>(numElems, numIters, threads, sharedBytes, stride, cycle);
+      break;
+    case 2:
+      launchKernel<2>(numElems, numIters, threads, sharedBytes, stride, cycle);
+      break;
+    default:
+      throw std::runtime_error("Invalid mode");
+  }
 }
