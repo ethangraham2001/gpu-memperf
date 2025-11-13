@@ -20,14 +20,18 @@ __global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, u
   if (tid == 0)
     start = clock64();
 
+  /* Loop over shared memory with given stride. */
   for (uint32_t i = 0; i < numIters; ++i) {
     uint32_t offset = ((tid + i) * stride) & mask;
 
     if constexpr (MODE == 0) {
+      /* Read-only. */
       tmp += sharedMem[offset];
     } else if constexpr (MODE == 1) {
+      /* Write-only. */
       sharedMem[offset] = tid + i;
     } else {
+      /* Read + write. */
       uint64_t v = sharedMem[offset];
       sharedMem[offset] = v + 1;
     }
