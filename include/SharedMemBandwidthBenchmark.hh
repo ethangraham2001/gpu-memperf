@@ -32,7 +32,7 @@ class SharedMemBandwidthBenchmark {
   SharedMemBandwidthBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
     sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768, 49152});
-    threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256});
+    threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256, 512});
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
     elemBytes_ = 4UL;
     numIters_ = parser.getOr("num_iters", 10000UL);
@@ -47,12 +47,7 @@ class SharedMemBandwidthBenchmark {
     enc_["shared_mem_bandwidth.csv"] << "bytes,threads,stride,iters,cycles,bandwidthGBps\n";
 
     for (uint64_t bytes : sizes_) {
-      const uint64_t numElems64 = bytes / elemBytes_;
-      if (numElems64 > std::numeric_limits<uint32_t>::max()) {
-        enc_.log() << "Skipping size " << bytes << " (element count exceeds 32-bit limit).\n";
-        continue;
-      }
-      const uint32_t numElems = static_cast<uint32_t>(numElems64);
+      uint32_t numElems = static_cast<uint32_t>(bytes / elemBytes_);
 
       for (uint64_t threads : threads_) {
         if (threads == 0)
@@ -63,6 +58,7 @@ class SharedMemBandwidthBenchmark {
         for (uint64_t stride : strides_) {
           std::vector<uint64_t> cycles;
           cycles.reserve(reps_);
+
           for (uint64_t r = 0; r < reps_; ++r) {
             uint64_t cycle = 0;
             launchSharedMemBandwidthKernel(numElems, static_cast<uint32_t>(numIters_), static_cast<uint32_t>(threads),
@@ -70,16 +66,15 @@ class SharedMemBandwidthBenchmark {
             cycles.push_back(cycle);
           }
 
-          const uint64_t avgCycles =
-              std::accumulate(cycles.begin(), cycles.end(), 0) / static_cast<uint64_t>(cycles.size());
+          const uint64_t avgCycles = std::accumulate(cycles.begin(), cycles.end(), 0) / (cycles.size());
           const double seconds = (double)avgCycles / (double)clockFreq_;
           const double transfersPerIter = (mode_ == 2) ? 2.0 : 1.0; /* mode 2: read+write */
           const double bytesTransferred = static_cast<double>(elemBytes_) * transfersPerIter *
                                           static_cast<double>(numIters_) * static_cast<double>(threads);
-          const double bandwidthGBps = (bytesTransferred / seconds) / 1e9;
+          double bandwidthGBps = (bytesTransferred / seconds) / 1e9;
 
           enc_["shared_mem_bandwidth.csv"] << bytes << "," << threads << "," << stride << "," << numIters_ << ","
-                                           << avgCycles << "," << bandwidthGBps << std::fixed << "\n";
+                                           << avgCycles << "," << bandwidthGBps << "\n";
         }
       }
     }
@@ -89,10 +84,10 @@ class SharedMemBandwidthBenchmark {
   Encoder& enc_;
   std::vector<uint64_t> sizes_;
   std::vector<uint64_t> threads_;
-  uint64_t numIters_;
-  uint64_t elemBytes_;
-  uint64_t reps_;
   std::vector<uint64_t> strides_;
+  uint64_t elemBytes_;
+  uint64_t numIters_;
+  uint64_t reps_;
   uint64_t mode_;
   uint32_t clockFreq_;
 };
