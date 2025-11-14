@@ -53,12 +53,12 @@ class GlobalToSharedBenchmark {
 
         const uint32_t bufferSize = static_cast<uint32_t>(common::GiB);
         const auto numElems = util::bytesToNumElems<uint32_t>(bufferSize);
-        const std::vector<uint32_t> globalBuffer = util::randomVector<uint32_t>(numElems);
+        const std::vector<types::f32> globalBuffer = util::randomVector<types::f32>(numElems);
 
         enc_[bandwidth] << "\t[tile size = " << tileSize << "]\n";
         const auto launcher = getLauncher(tileSize);
         for (const auto flops : numFlopsPerElem_) {
-          /* Dry-run to warm the GPU. */
+          /* Dry-run to warm the GPU and cuda events context. */
           launcher(mode, globalBuffer, flops, threadsPerBlock_, numBlocks_);
 
           enc_.log() << "num flops: " << flops << "\n";

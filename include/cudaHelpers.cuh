@@ -21,6 +21,6 @@
  * A modulo operator is expensive in general, especially when we are trying to
  * benchmark raw memory performance.
  */
-#define mod_power_of_2(x) &(x - 1)
+#define mod_power_of_2(x) &((x) - 1)
 
 #endif /* CUDAHELPERS_CUH */

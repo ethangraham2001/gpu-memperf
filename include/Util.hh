@@ -44,6 +44,13 @@ static const std::vector<T> permutation(uint64_t n) {
 
 /**
  * randomVector - generate a vector with random elements given a size
+ *
+ * @size: the number of elements in the resulting vector
+ *
+ * NOTE: if T is a floating point type, the vector's values will be in range
+ * [0.0, 1.0], and if T is an integer type its values will be be within the
+ * full range of representable values of the type's bitwidth, e.g.,
+ * [INT32_MIN, INT32_MAX] for a 32-bit signed integer type.
  */
 template <typename T>
 std::vector<T> randomVector(size_t size) {

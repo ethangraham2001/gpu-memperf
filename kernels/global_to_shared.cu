@@ -9,27 +9,35 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
-__device__ void performComputation(types::f32* value, uint64_t numFlops) {
+__device__ void computeElem(types::f32* value, uint64_t numOps) {
   uint32_t tmp = *value;
 
-  for (uint32_t i = 0; i < numFlops; i++)
-    tmp *= tmp & 63; /* Modulo 64. */
-  *value = tmp;
+  for (uint32_t i = 0; i < numOps; i++)
+    tmp += tmp;
+  *value = tmp mod_power_of_2(1 << 16);
 }
 
+/**
+ * performOps - execute some number of operations on each value in a tile
+ *
+ * Execues @numOps operations for each element in @tile, and writes it back.
+ *
+ * @tile: a shared memory tile
+ * @numOps: the number of operations to perform for each value
+ */
 template <uint32_t NumElems>
-__device__ void compute(types::f32 tile[NumElems], uint64_t numFlops) {
-  for (uint32_t i = 0; i < ARRAY_SIZE(tile); i += blockDim.x) {
+__device__ void computeOnTile(types::f32 tile[NumElems], uint64_t numOps) {
+  for (uint32_t i = 0; i < NumElems; i += blockDim.x) {
     uint32_t idx = threadIdx.x + i;
     if (idx < NumElems) {
-      uint32_t* ptr = &tile[i + threadIdx.x];
-      performComputation(ptr, numFlops);
+      types::f32* ptr = &tile[i + threadIdx.x];
+      computeElem(ptr, numOps);
     }
   }
 }
 
 template <uint32_t TileSize>
-__global__ void globalToSharedMemSync(types::f32* globalBuffer, uint32_t globalBufferSize, uint64_t numFlops) {
+__global__ void globalToSharedMemSync(types::f32* globalBuffer, uint32_t globalBufferSize, uint64_t numOps) {
   __shared__ types::f32 tile[TileSize / sizeof(types::f32)];
 
   /* Every block reads a partition of the global buffer. */
@@ -47,7 +55,7 @@ __global__ void globalToSharedMemSync(types::f32* globalBuffer, uint32_t globalB
     }
     __syncthreads();
     /* Compute using the data. */
-    compute<TileSize / sizeof(types::f32)>(tile, numFlops);
+    computeOnTile<TileSize / sizeof(types::f32)>(tile, numOps);
     __syncthreads();
   }
 }
@@ -95,12 +103,12 @@ __global__ void globalToSharedMemAsyncDoubleBuffered(types::f32* globalBuffer, u
     /* Issue the next memory copy asynchronously from this block's partition */
     cuda::memcpy_async(group, tiles[writeIdx], &globalBuffer[tileIdx * tileElems], sizeof(tiles[0]), barrier);
     /* Overlap the async copy with computation */
-    compute<TileSize / sizeof(types::f32)>(tiles[readIdx], numFlops);
+    computeOnTile<TileSize / sizeof(types::f32)>(tiles[readIdx], numFlops);
     barrier.arrive_and_wait();
   }
 
   /* Process last tile. */
-  compute<TileSize / sizeof(types::f32)>(tiles[(myEndTile - myStartTile - 1) % 2], numFlops);
+  computeOnTile<TileSize / sizeof(types::f32)>(tiles[(myEndTile - myStartTile - 1) % 2], numFlops);
 }
 
 template <uint32_t TileSize>
@@ -119,9 +127,21 @@ static globalToSharedMemKernel<TileSize> getKernel(globalToShared::mode mode) {
   }
 }
 
+/**
+ * LaunchGlobalToSharedKernel - launch a global-to-shared memory bench kernel
+ *
+ * @return the number of milliseconds that the kernel took to execute.
+ *
+ * @mode: the mode, e.g., synchronous, double-buffered, quadruble buffered.
+ * @globalbuffer: a large memory region with arbitrary data that is read into
+ *                shared memory by the GPU threads.
+ * @numOps: the number of (integer) operations to perform per loaded tile value.
+ * @threadsPerBlock: the number of threads per block.
+ * @numBlocks: the number of thread blocks.
+ */
 template <uint32_t TileSize>
 float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<types::f32>& globalBuffer,
-                                 uint64_t numFlops, uint64_t threadsPerBlock, uint64_t numBlocks) {
+                                 uint64_t numOps, uint64_t threadsPerBlock, uint64_t numBlocks) {
   types::f32* dGlobalBuffer;
 
   throwOnErr(cudaMalloc(&dGlobalBuffer, globalBuffer.size() * sizeof(types::f32)));
@@ -137,7 +157,7 @@ float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<ty
   cudaEventRecord(start);
 
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-      dGlobalBuffer, static_cast<uint32_t>(globalBuffer.size()), numFlops);
+      dGlobalBuffer, static_cast<uint32_t>(globalBuffer.size()), numOps);
 
   cudaEventRecord(stop);
   cudaEventSynchronize(stop);
