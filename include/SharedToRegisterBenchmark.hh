@@ -26,8 +26,8 @@ class SharedToRegisterBenchmark {
     numIters_ = parser.getOr("num_iters", 10000UL);
     reps_ = parser.getOr("reps", 3UL);
 
-    std::string modeStr = parser.getOr("mode", std::string(sharedToRegisterKernel::modeRead));
-    mode_ = sharedToRegisterKernel::parseMode(modeStr);
+    std::string modeStr = parser.getOr("mode", std::string(sharedToRegister::modeRead));
+    mode_ = sharedToRegister::parseMode(modeStr);
 
     clockFreq_ = getMaxClockFrequencyHz();
   }
@@ -59,7 +59,7 @@ class SharedToRegisterBenchmark {
 
           const uint64_t avgCycles = std::accumulate(cycles.begin(), cycles.end(), 0) / (cycles.size());
           const double seconds = (double)avgCycles / (double)clockFreq_;
-          const double transfersPerIter = (mode_ == sharedToRegisterKernel::READ_WRITE) ? 2.0 : 1.0;
+          const double transfersPerIter = (mode_ == sharedToRegister::READ_WRITE) ? 2.0 : 1.0;
           const double bytesTransferred = static_cast<double>(elemBytes_) * transfersPerIter *
                                           static_cast<double>(numIters_) * static_cast<double>(threads);
           double bandwidthGBps = (bytesTransferred / seconds) / 1e9;
@@ -79,7 +79,7 @@ class SharedToRegisterBenchmark {
   uint64_t elemBytes_;
   uint64_t numIters_;
   uint64_t reps_;
-  sharedToRegisterKernel::mode mode_;
+  sharedToRegister::mode mode_;
   uint32_t clockFreq_;
 };
 

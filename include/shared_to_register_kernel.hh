@@ -7,7 +7,7 @@
 
 #include <Common.hh>
 
-namespace sharedToRegisterKernel {
+namespace sharedToRegister {
 
 enum mode {
   READ,
@@ -29,7 +29,7 @@ static __used mode parseMode(std::string& modeArg) {
   throw std::invalid_argument("parseMode: invalid mode " + modeArg);
 }
 
-} /* namespace sharedToRegisterKernel */
+} /* namespace sharedToRegister */
 
 /**
  * Launch the shared memory kernel.
@@ -43,6 +43,6 @@ static __used mode parseMode(std::string& modeArg) {
  * @param cycle Returned cycles for measured kernel.
  */
 void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                  uint32_t stride, sharedToRegisterKernel::mode mode, uint64_t* cycle);
+                                  uint32_t stride, sharedToRegister::mode mode, uint64_t* cycle);
 
 #endif /* SHARED_TO_REGISTER_KERNEL_HH */
