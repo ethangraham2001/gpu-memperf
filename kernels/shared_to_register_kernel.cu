@@ -2,8 +2,10 @@
 #include <clock64.hh>
 #include <cudaHelpers.cuh>
 
-template <int MODE>
-__global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t stride, uint64_t* cycle) {
+#include "shared_to_register_kernel.hh"
+
+template <sharedToRegisterKernel::mode MODE>
+__global__ void sharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t stride, uint64_t* cycle) {
   const uint32_t tid = threadIdx.x;
   const uint32_t mask = numElems - 1u;
 
@@ -24,10 +26,10 @@ __global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, u
   for (uint32_t i = 0; i < numIters; ++i) {
     uint32_t offset = ((tid + i) * stride) & mask;
 
-    if constexpr (MODE == 0) {
+    if constexpr (MODE == sharedToRegisterKernel::READ) {
       /* Read-only. */
       tmp += sharedMem[offset];
-    } else if constexpr (MODE == 1) {
+    } else if constexpr (MODE == sharedToRegisterKernel::WRITE) {
       /* Write-only. */
       sharedMem[offset] = tid + i;
     } else {
@@ -49,7 +51,7 @@ __global__ void sharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, u
   }
 }
 
-template <int MODE>
+template <sharedToRegisterKernel::mode MODE>
 void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes, uint32_t stride,
                   uint64_t* cycle) {
   cudaError_t err;
@@ -58,12 +60,12 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
   uint64_t warmupCycle = 0;
 
   /* Warmup launch. */
-  sharedMemBandwidthKernel<MODE><<<1, block, sharedBytes>>>(numElems, warmupIters, stride, &warmupCycle);
+  sharedToRegisterKernel<MODE><<<1, block, sharedBytes>>>(numElems, warmupIters, stride, &warmupCycle);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
 
   /* Kernel uses extern shared memory size = sharedBytes. */
-  sharedMemBandwidthKernel<MODE><<<1, block, sharedBytes>>>(numElems, numIters, stride, cycle);
+  sharedToRegisterKernel<MODE><<<1, block, sharedBytes>>>(numElems, numIters, stride, cycle);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
 
@@ -71,17 +73,17 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
   throwOnErr(err);
 }
 
-void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                    uint32_t stride, uint32_t mode, uint64_t* cycle) {
+void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
+                                  uint32_t stride, sharedToRegisterKernel::mode mode, uint64_t* cycle) {
   switch (mode) {
-    case 0:
-      launchKernel<0>(numElems, numIters, threads, sharedBytes, stride, cycle);
+    case sharedToRegisterKernel::READ:
+      launchKernel<sharedToRegisterKernel::READ>(numElems, numIters, threads, sharedBytes, stride, cycle);
       break;
-    case 1:
-      launchKernel<1>(numElems, numIters, threads, sharedBytes, stride, cycle);
+    case sharedToRegisterKernel::WRITE:
+      launchKernel<sharedToRegisterKernel::WRITE>(numElems, numIters, threads, sharedBytes, stride, cycle);
       break;
-    case 2:
-      launchKernel<2>(numElems, numIters, threads, sharedBytes, stride, cycle);
+    case sharedToRegisterKernel::READ_WRITE:
+      launchKernel<sharedToRegisterKernel::READ_WRITE>(numElems, numIters, threads, sharedBytes, stride, cycle);
       break;
     default:
       throw std::runtime_error("Invalid mode");

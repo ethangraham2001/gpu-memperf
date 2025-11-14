@@ -1,5 +1,5 @@
-#ifndef SHAREDMEMBANDWIDTHBENCHMARK_HH
-#define SHAREDMEMBANDWIDTHBENCHMARK_HH
+#ifndef SHARED_TO_REGISTER_BENCHMARK_HH
+#define SHARED_TO_REGISTER_BENCHMARK_HH
 
 #include <algorithm>
 #include <numeric>
@@ -11,25 +11,13 @@
 #include <Util.hh>
 #include <clock64.hh>
 
-/**
- * Launch the shared memory bandwidth kernel.
- *
- * @param numElems Number of 32-bit words in shared memory, must be power of two.
- * @param numIters Iterations per thread of the measured loop.
- * @param threads Threads per block.
- * @param sharedBytes Size in bytes of the extern shared memory.
- * @param stride Stride in words used to create bank conflict patterns.
- * @param mode 0=read, 1=write, 2=read+write.
- * @param cycle Returned cycles for measured kernel.
- */
-void launchSharedMemBandwidthKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                    uint32_t stride, uint32_t mode, uint64_t* cycle);
+#include "shared_to_register_kernel.hh"
 
-class SharedMemBandwidthBenchmark {
+class SharedToRegisterBenchmark {
  public:
-  static constexpr const char* benchmarkName = "shared_mem_bandwidth";
+  static constexpr const char* benchmarkName = "shared_to_register";
 
-  SharedMemBandwidthBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
+  SharedToRegisterBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
     sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768, 49152});
     threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256, 512});
@@ -37,14 +25,17 @@ class SharedMemBandwidthBenchmark {
     elemBytes_ = 4UL;
     numIters_ = parser.getOr("num_iters", 10000UL);
     reps_ = parser.getOr("reps", 3UL);
-    mode_ = parser.getOr("mode", 0UL); /* 0=read, 1=write, 2=read+write. */
+
+    std::string modeStr = parser.getOr("mode", std::string(sharedToRegisterKernel::modeRead));
+    mode_ = sharedToRegisterKernel::parseMode(modeStr);
+
     clockFreq_ = getMaxClockFrequencyHz();
   }
 
   std::string name() const { return benchmarkName; }
 
   void run() {
-    enc_["shared_mem_bandwidth.csv"] << "bytes,threads,stride,iters,cycles,bandwidthGBps\n";
+    enc_["shared_to_register.csv"] << "bytes,threads,stride,iters,cycles,bandwidthGBps\n";
 
     for (uint64_t bytes : sizes_) {
       uint32_t numElems = static_cast<uint32_t>(bytes / elemBytes_);
@@ -61,20 +52,20 @@ class SharedMemBandwidthBenchmark {
 
           for (uint64_t r = 0; r < reps_; ++r) {
             uint64_t cycle = 0;
-            launchSharedMemBandwidthKernel(numElems, static_cast<uint32_t>(numIters_), static_cast<uint32_t>(threads),
-                                           bytes, static_cast<uint32_t>(stride), static_cast<uint32_t>(mode_), &cycle);
+            launchSharedToRegisterKernel(numElems, static_cast<uint32_t>(numIters_), static_cast<uint32_t>(threads),
+                                         bytes, static_cast<uint32_t>(stride), mode_, &cycle);
             cycles.push_back(cycle);
           }
 
           const uint64_t avgCycles = std::accumulate(cycles.begin(), cycles.end(), 0) / (cycles.size());
           const double seconds = (double)avgCycles / (double)clockFreq_;
-          const double transfersPerIter = (mode_ == 2) ? 2.0 : 1.0; /* mode 2: read+write */
+          const double transfersPerIter = (mode_ == sharedToRegisterKernel::READ_WRITE) ? 2.0 : 1.0;
           const double bytesTransferred = static_cast<double>(elemBytes_) * transfersPerIter *
                                           static_cast<double>(numIters_) * static_cast<double>(threads);
           double bandwidthGBps = (bytesTransferred / seconds) / 1e9;
 
-          enc_["shared_mem_bandwidth.csv"] << bytes << "," << threads << "," << stride << "," << numIters_ << ","
-                                           << avgCycles << "," << bandwidthGBps << "\n";
+          enc_["shared_to_register.csv"] << bytes << "," << threads << "," << stride << "," << numIters_ << ","
+                                         << avgCycles << "," << bandwidthGBps << "\n";
         }
       }
     }
@@ -88,13 +79,13 @@ class SharedMemBandwidthBenchmark {
   uint64_t elemBytes_;
   uint64_t numIters_;
   uint64_t reps_;
-  uint64_t mode_;
+  sharedToRegisterKernel::mode mode_;
   uint32_t clockFreq_;
 };
 
-inline bool sharedMemBandwidthRegistered = []() {
-  benchmark::BenchmarkRegistry::instance().registerBenchmark<SharedMemBandwidthBenchmark>(
-      SharedMemBandwidthBenchmark::benchmarkName);
+inline bool sharedMemoryRegistered = []() {
+  benchmark::BenchmarkRegistry::instance().registerBenchmark<SharedToRegisterBenchmark>(
+      SharedToRegisterBenchmark::benchmarkName);
   return true;
 }();
 
