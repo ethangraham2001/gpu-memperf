@@ -7,14 +7,9 @@ NVCCFLAGS += -Werror all-warnings
 NVCCFLAGS += -lnvidia-ml
 NVCCFLAGS += -Xcompiler "-Wall,-Wextra,-Wconversion,-Wshadow"
 NVCCFLAGS += -Xcompiler "-Wno-unused-parameter"  # Often unavoidable in CUDA
+NVCCFLAGS += -Xcompiler "-Wno-error=conversion"
+NVCCFLAGS += -gencode arch=compute_90,code=compute_90
 INCLUDES := -I./include
-
-# # Target multiple architectures for portability
-# GENCODES := \
-#   -gencode arch=compute_70,code=sm_70 \
-#   -gencode arch=compute_75,code=sm_75 \
-#   -gencode arch=compute_80,code=sm_80 \
-#   -gencode arch=compute_89,code=sm_89
 
 SRCS := $(wildcard src/*.cc src/*.cu)
 TESTS := $(wildcard test/*.cpp)
