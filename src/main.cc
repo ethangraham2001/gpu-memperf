@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <Benchmark.hh>
+#include <GlobalToSharedBenchmark.hh>
 #include <PchaseCPUBenchmark.hh>
 #include <PchaseGPUBenchmark.hh>
 #include <RandomAccessBenchmark.hh>
