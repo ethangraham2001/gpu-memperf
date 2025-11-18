@@ -32,10 +32,9 @@ __device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
 }
 
 /**
- * l2LoadElem - inline PTX for loading an element from L2 cache.
+ * l2LoadElem - inline PTX for loading an element from L2 cache
  *
- * @addr: pointer to element in data array
- * @sink: accumulator to prevent compiler optimization
+ * Using cg (cache global) modifier to bypass L1 cache.
  */
 template <typename T>
 __device__ __forceinline__ void l2LoadElem(T* addr, T& sink) {
@@ -51,7 +50,6 @@ __device__ __forceinline__ void l2LoadElem(T* addr, T& sink) {
                  : "memory");
   }
 }
-
 
 /**
  * dramLoadElem - inline PTX for loading an element from DRAM
@@ -144,10 +142,7 @@ __global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t 
   T localSink = 0;
 
   uint64_t start = clock64();
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l1LoadElem(&data[idx], localSink);
-  }
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
   uint64_t end = clock64();
 
   results[tid] = end - start;
