@@ -259,7 +259,7 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
     throwOnErr(cudaDeviceSynchronize());
   }
 
-  /* Initialize events for timing */
+  /* Initialize events for timing. */
   cudaEvent_t evStart, evStop;
   throwOnErr(cudaEventCreate(&evStart));
   throwOnErr(cudaEventCreate(&evStop));
@@ -269,7 +269,7 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
       dData, dIndices, data.size(), numAccesses, dTimingResults, dSharedCycles, dSink);
 
-  // Measure using multiple SM blocks (host-side)
+  /* Measure using multiple thread blocks (host-side). */
   throwOnErr(cudaEventRecord(evStop));
   throwOnErr(cudaEventSynchronize(evStop));
   float ms = 0.0f;
