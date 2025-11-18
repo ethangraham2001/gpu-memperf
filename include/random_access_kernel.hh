@@ -27,8 +27,8 @@ static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
 };
 
 static const constexpr uint64_t sensibleNumBlocks[MODES_SIZE] = {
-    1,  /* L1. */
-    64, /* L2. Gave the highest and most stable L2 bandwidth without unnecessary scheduling overhead */
+    1,  /* L1 Cache. */
+    64, /* L2 Cache - 64 blocks gives optimal bandwidth: fewer blocks (32) underutilizes, while more (128+) causes overhead and lowers performance, making 64 the best balance. */
     10, /* DRAM. TODO: figure out what this should be. */
 };
 
