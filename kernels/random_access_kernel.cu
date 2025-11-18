@@ -258,7 +258,7 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
     throwOnErr(cudaDeviceSynchronize());
   }
 
-  /* Initialize events for timing */
+  /* Initialize events for timing. */
   cudaEvent_t evStart, evStop;
   throwOnErr(cudaEventCreate(&evStart));
   throwOnErr(cudaEventCreate(&evStop));
