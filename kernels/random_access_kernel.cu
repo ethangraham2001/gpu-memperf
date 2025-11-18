@@ -229,10 +229,9 @@ static randomAccessWarmupKernelFunc<T> getWarmupKernel(randomAccessKernel::mode 
 }
 
 template <typename T>
-std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::vector<T>& data,
-                                                                    const std::vector<uint32_t>& indices,
-                                                                    uint64_t numAccesses, uint64_t threadsPerBlock,
-                                                                    uint64_t numBlocks, randomAccessKernel::mode mode) {
+uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<uint32_t>& indices,
+                                  uint64_t numAccesses, uint64_t threadsPerBlock, uint64_t numBlocks,
+                                  randomAccessKernel::mode mode) {
   uint64_t* dTimingResults;
   uint64_t* dSharedCycles;
   uint32_t* dIndices;
@@ -278,8 +277,6 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
 
   throwOnErr(cudaGetLastError());
 
-  uint64_t* hTimingResults = static_cast<uint64_t*>(malloc(threadsPerBlock * numBlocks * sizeof(uint64_t)));
-  throwOnErr(cudaMemcpy(hTimingResults, dTimingResults, totalThreads * sizeof(uint64_t), cudaMemcpyDeviceToHost));
   cudaFree(dData);
   cudaFree(dTimingResults);
   cudaFree(dSink);
@@ -287,31 +284,18 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
 
   /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
   uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
-
-  std::vector<uint64_t> result(totalThreads);
-  for (uint64_t i = 0; i < totalThreads; i++)
-    result[i] = hTimingResults[i];
-  free(hTimingResults);
-
-  return {hSharedCycles, result};
+  // TODO: decide if we keep results in cycles or ms (above - currently in cycles)
+  return hSharedCycles;
 }
 
 /* The compiler complains when the concrete versions that we use aren't defined.
  * The implementation isn't required - just a header. So we declare a concrete
  * header for each version of randomAccessKernel that we use. */
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f8>(const std::vector<types::f8>&,
-                                                                                        const std::vector<uint32_t>&,
-                                                                                        uint64_t, uint64_t, uint64_t,
-                                                                                        randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f16>(const std::vector<types::f16>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f64>(const std::vector<types::f64>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
+template uint64_t launchRandomAccessKernel<types::f8>(const std::vector<types::f8>&, const std::vector<uint32_t>&,
+                                                      uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
+template uint64_t launchRandomAccessKernel<types::f16>(const std::vector<types::f16>&, const std::vector<uint32_t>&,
+                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
+template uint64_t launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&, const std::vector<uint32_t>&,
+                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
+template uint64_t launchRandomAccessKernel<types::f64>(const std::vector<types::f64>&, const std::vector<uint32_t>&,
+                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);

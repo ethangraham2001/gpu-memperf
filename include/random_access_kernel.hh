@@ -61,9 +61,8 @@ static __used uint64_t defaultNumBlocks(mode m) {
 
 /** Host-callable wrapper. */
 template <typename T>
-std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::vector<T>& data,
-                                                                    const std::vector<uint32_t>& indices,
-                                                                    uint64_t numAccesses, uint64_t threadsPerBlock,
-                                                                    uint64_t numBlocks, randomAccessKernel::mode mode);
+uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<uint32_t>& indices,
+                                  uint64_t numAccesses, uint64_t threadsPerBlock, uint64_t numBlocks,
+                                  randomAccessKernel::mode mode);
 
 #endif /* RANDOM_ACCESS_KERNEL_HH */

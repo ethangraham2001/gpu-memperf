@@ -68,23 +68,15 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
     enc_["access_granularity"] << sizeof(DataType) << "B" << std::endl;
 
     const std::string globalCSV = "global_bw.csv";
-    const std::string perThreadCSV = "per_thread_bw.csv";
     enc_[globalCSV] << "num_warps,cycles,bandwidth\n";
-    enc_[perThreadCSV] << "num_warps,tid,cycles\n";
 
     for (uint64_t numWarps : numWarps_) {
       const auto res = runOne(numWarps);
 
-      /* Write global result. */
-      const double globalBandwidth = cyclesToBandwidth(res.first, numWarps);
-      enc_[globalCSV] << numWarps << "," << res.first << "," << globalBandwidth << "\n";
+      /* Write global result, per-thread results were removed when we started measuring per-block  */
+      const double globalBandwidth = cyclesToBandwidth(res, numWarps);
+      enc_[globalCSV] << numWarps << "," << res << "," << globalBandwidth << "\n";
       enc_.log() << numWarps << " warps, bandwidth: " << util::formatBytes(globalBandwidth) << "/S\n";
-
-      /* Write per-thread results. */
-      for (uint64_t tid = 0; tid < res.second.size(); tid++) {
-        const uint64_t threadResult = res.second[tid];
-        enc_[perThreadCSV] << numWarps << "," << tid << "," << threadResult << "\n";
-      }
     }
   }
 
@@ -98,7 +90,7 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
   uint64_t numBlocks_;
   Encoder& enc_;
 
-  std::pair<uint64_t, std::vector<uint64_t>> runOne(uint64_t numWarps) {
+  uint64_t runOne(uint64_t numWarps) {
     const uint64_t numThreads = common::threadsPerWarp * numWarps;
     uint64_t numElems = workingSetSize_ / sizeof(DataType);
     const std::vector<uint32_t> indices = util::permutation<uint32_t>(numElems);
