@@ -94,6 +94,8 @@ __device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint6
 
 /**
  * randomAccessKernelL1Warmup - warmup kernel to prime L1 cache before measurement.
+ * 
+ * Moved out of the main kernel when switching to per-block timing with CUDA events.
  *
  * @data: data array
  * @indices: random index array
@@ -112,6 +114,11 @@ __global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t 
 
 /**
  * randomAccessKernelL2Warmup - warmup kernel to prime L2 cache before measurement.
+ * 
+ * After moving from per-thread timing to per-block timing with CUDA events, 
+ * leaving warmup in the measured kernel pulled those accesses into the event 
+ * window and skewed results. Warmup runs separately in its own kernel so that 
+ * the measured kernel contains only the work we actually want to time.
  *
  * @data: data array
  * @indices: random index array
@@ -152,10 +159,6 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
 
-  // TODO: remove comments below (just for info about changes)
-  // warmup removed - done via separate kernel
-  // sync removed - not needed anymore
-
   uint64_t start = clock64();
   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
   uint64_t end = clock64();
@@ -180,10 +183,6 @@ __global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numEle
                                      uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-  // TODO: remove comments below (just for info about changes)
-  // warmup removed - done via separate kernel
-  // sync removed - not needed anymore
 
   uint64_t start = clock64();
   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
