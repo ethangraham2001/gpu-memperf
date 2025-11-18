@@ -40,10 +40,9 @@ __device__ __forceinline__ void l1LoadElem(T* addr, uint64_t& sink) {
 }
 
 /**
- * l2LoadElem - inline PTX for loading an element from L2 cache.
+ * l2LoadElem - inline PTX for loading an element from L2 cache
  *
- * @addr: pointer to element in data array
- * @sink: accumulator to prevent compiler optimization
+ * Using cg (cache global) modifier to bypass L1 cache.
  */
 template <typename T>
 __device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
@@ -71,6 +70,29 @@ __device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
 }
 
 /**
+ * accumulateRandomAccesses - shared access pattern for warmup and benchmark kernels
+ * 
+ * @tid: thread ID
+ * @totalThreads: total number of threads
+ * @data: data array
+ * @indices: random index array
+ * @numElems: number of elements in data/indices
+ * @numAccesses: number of accesses per thread
+ * @loadFunc: function to load an element
+ */
+template <typename T, typename LoadFunc>
+__device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint64_t totalThreads, T* data,
+                                                             uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                                             LoadFunc loadFunc) {
+  uint64_t localSink = 0;
+  for (uint64_t i = 0; i < numAccesses; i++) {
+    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
+    loadFunc(&data[idx], localSink);
+  }
+  return localSink;
+}
+
+/**
  * randomAccessKernelL1Warmup - warmup kernel to prime L1 cache before measurement.
  *
  * @data: data array
@@ -84,11 +106,7 @@ __global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t 
                                            uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  uint64_t localSink = 0;
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l1LoadElem(&data[idx], localSink);
-  }
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
   sink[tid] = localSink;
 }
 
@@ -106,11 +124,7 @@ __global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t 
                                            uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  uint64_t localSink = 0;
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l2LoadElem(&data[idx], localSink);
-  }
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
   sink[tid] = localSink;
 }
 
@@ -137,17 +151,13 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
                                      uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  uint64_t localSink = 0;
 
   // TODO: remove comments below (just for info about changes)
   // warmup removed - done via separate kernel
   // sync removed - not needed anymore
 
   uint64_t start = clock64();
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l1LoadElem(&data[idx], localSink);
-  }
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
   uint64_t end = clock64();
 
   results[tid] = end - start;
@@ -170,17 +180,13 @@ __global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numEle
                                      uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  uint64_t localSink = 0;
 
   // TODO: remove comments below (just for info about changes)
   // warmup removed - done via separate kernel
   // sync removed - not needed anymore
 
   uint64_t start = clock64();
-  for (uint64_t i = 0; i < numAccesses; i++) {
-    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
-    l2LoadElem(&data[idx], localSink);
-  }
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
   uint64_t end = clock64();
 
   results[tid] = end - start;
