@@ -128,7 +128,7 @@ void launchStridedAccessKernel(const std::vector<T>& data, cacheload::CachePolic
 
 /* The compiler complains when the concrete versions that we use aren't defined.
  * The implementation isn't required - just a header. So we declare a concrete
- * header for each version of randomAccessKernel that we use. */
+ * header for each version of stridedAccessKernel that we use. */
 
 template void launchStridedAccessKernel<types::f8>(const std::vector<types::f8>&, cacheload::CachePolicy, uint64_t,
                                                    uint64_t, uint64_t, uint64_t, uint64_t*);

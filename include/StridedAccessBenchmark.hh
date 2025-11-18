@@ -46,7 +46,7 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
     threadsPerBlock_ = static_cast<int>(parser.getOr("threads_per_block", common::maxThreadsPerBlock));
     numBlocks_ = static_cast<int>(parser.getOr("blocks", 0UL)); /* 0 => auto (SM count). */
 
-    //TODO REFACTOR WITH RANDOM ACCESSS BENCHMARK
+    /* TODO: Refactor with RandomAccessBenchmark */
     if (mode == "L1") {
       workingSetSize_ = 100 * common::KiB; /* L1. */
       cachePolicy_ = cacheload::CachePolicy::L1;
@@ -108,7 +108,6 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
   uint64_t iters_;
   int threadsPerBlock_;
   int numBlocks_;
-  std::string dataType;
   std::string mode;
   cacheload::CachePolicy cachePolicy_{cacheload::CachePolicy::L1};
 };

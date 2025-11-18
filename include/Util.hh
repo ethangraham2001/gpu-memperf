@@ -42,32 +42,6 @@ static const std::vector<T> permutation(uint64_t n) {
   return out;
 }
 
-/**
- * randomVector - generate a vector with random elements given a size
- */
-template <typename T>
-std::vector<T> randomVector(size_t size) {
-  static_assert(std::is_arithmetic_v<T>, "T must be an arithmetic type");
-  std::vector<T> result;
-  result.reserve(size);
-
-  std::random_device rd;
-  std::mt19937 gen(rd());
-
-  if constexpr (std::is_integral_v<T>) {
-    std::uniform_int_distribution<T> dist(std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
-    for (size_t i = 0; i < size; ++i) {
-      result.push_back(dist(gen));
-    }
-  } else if constexpr (std::is_floating_point_v<T>) {
-    std::uniform_real_distribution<T> dist(0.0, 1.0);
-    for (size_t i = 0; i < size; ++i) {
-      result.push_back(dist(gen));
-    }
-  }
-  return result;
-}
-
 template <typename T>
 uint64_t bytesToNumElems(uint64_t bytes) {
   if (bytes % sizeof(T))
