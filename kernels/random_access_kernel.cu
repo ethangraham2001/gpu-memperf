@@ -101,6 +101,9 @@ __device__ __forceinline__ void dramLoadElem(T* addr, uint64_t& sink) {
   }
 }
 
+/** 
+ * Loader structs to wrap load functions at compile time - L1, L2, DRAM
+ */
 template <typename T>
 struct L1Loader {
   __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { l1LoadElem<T>(addr, sink); }
@@ -185,138 +188,6 @@ __global__ void randomAccessWarmupDispatch(T* data, uint32_t* indices, uint64_t 
   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
   sink[tid] = localSink;
 }
-
-/**
- * randomAccessKernelL1Warmup - warmup kernel to prime L1 cache before measurement.
- *
- * Legacy specialized version kept for reference while getWarmupKernel handles loader dispatch.
- *
- * Moved out of the main kernel when switching to per-block timing with CUDA events.
- *
- * @data: data array
- * @indices: random index array
- * @numElems: number of elements in data/indices
- * @numAccesses: number of accesses per thread
- * @sink: accumulator to prevent optimization
- */
-// template <typename T>
-// __global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-//                                            uint64_t* sink) {
-//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-//   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
-//   sink[tid] = localSink;
-// }
-
-/**
- * randomAccessKernelL2Warmup - warmup kernel to prime L2 cache before measurement.
- *
- * Legacy specialized version kept for reference while getWarmupKernel handles loader dispatch.
- *
- * After moving from per-thread timing to per-block timing with CUDA events,
- * leaving warmup in the measured kernel pulled those accesses into the event
- * window and skewed results. Warmup runs separately in its own kernel so that
- * the measured kernel contains only the work we actually want to time.
- *
- * @data: data array
- * @indices: random index array
- * @numElems: number of elements in data/indices
- * @numAccesses: number of accesses per thread
- * @sink: accumulator to prevent optimization
- */
-// template <typename T>
-// __global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-//                                            uint64_t* sink) {
-//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-//   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
-//   sink[tid] = localSink;
-// }
-
-/**
- * randomAccessKernelDRAMWarmup - warmup kernel to prime DRAM before measurement.
- *
- * Legacy specialized version kept for reference while getWarmupKernel handles loader dispatch.
- */
-// template <typename T>
-// __global__ void randomAccessKernelDRAMWarmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-//                                              uint64_t* sink) {
-//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-//   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, dramLoadElem<T>);
-//   sink[tid] = localSink;
-// }
-
-/**
- * randomAccessKernelL1 - L1 random access bandwidth measurement kernel
- *
- * Legacy specialized version kept for reference while getKernel handles loader dispatch.
- *
- * The host must provide some set of random indices with the same cardinality as
- * the data array which should be a permutation of range [0, numElems - 1].
- *
- * Access to the indices array is perfectly coalesced for maximum efficiency,
- * and the indices contained within it should be well-distributed so that
- * accesses are random.
- *
- * @data: a data array of type T, which whould be a primitive type
- * @indices: a random permutation of range [0, numElems - 1]
- * @numElems: cardinality of @data and @indices
- * @numAccesses: the number of accesses performed per thread
- * @results[numThreads]: number of cycles per thread for the accesses
- * @totalCycles: cycles for all threads to complete as measured by thread 0
- * @sink[numThreads]: used to prevent compiler optimization - can be ignored
- */
-// template <typename T>
-// __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-//                                   uint64_t* totalCycles, uint64_t* sink) {
-//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-//   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
-//   sink[tid] = localSink;
-// }
-
-/**
- * randomAccessKernelL2 - L2 random access bandwidth measurement kernel.
- *
- * Legacy specialized version kept for reference while getKernel handles loader dispatch.
- *
- * @data: data array
- * @indices: random index array
- * @numElems: cardinality of @data and @indices
- * @numAccesses: number of accesses per thread
- * @results: cycles per thread
- * @totalCycles: unused after event timing (kept for compatibility)
- * @sink: accumulator to prevent optimization
- */
-// template <typename T>
-// __global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-//                                     uint64_t* totalCycles, uint64_t* sink) {
-//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-//   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
-//   sink[tid] = localSink;
-// }
-
-/**
- * randomAccessKernelDRAM - DRAM random access bandwidth measurement kernel.
- *
- * Legacy specialized version kept for reference while getKernel handles loader dispatch.
- */
-// template <typename T>
-// __global__ void randomAccessKernelDRAM(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-//                                       uint64_t* sharedCycles, uint64_t* sink) {
-//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-//   uint64_t totalThreads = gridDim.x * blockDim.x;
-
-//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, dramLoadElem<T>);
-//   sink[tid] = localSink;
-// }
 
 /**
  * Type aliases for function pointers to kernels
