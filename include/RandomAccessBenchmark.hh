@@ -140,13 +140,9 @@ class RandomAccessBenchmark : public RandomAccessBenchmarkBase {
 
   RandomAccessBenchmark(Encoder& e, const std::vector<std::string>& args) {
     benchmark::ArgParser parser(args);
-    std::string dataType = parser.getOr("data_type", std::string("int32"));
+    std::string dataType = parser.getOr("data_type", std::string("f32"));
 
-    if (dataType == "f8")
-      bench_ = std::make_unique<RandomAccessBenchmarkGeneric<types::f8>>(e, args);
-    else if (dataType == "f16")
-      bench_ = std::make_unique<RandomAccessBenchmarkGeneric<types::f16>>(e, args);
-    else if (dataType == "f32")
+    if (dataType == "f32")
       bench_ = std::make_unique<RandomAccessBenchmarkGeneric<types::f32>>(e, args);
     else if (dataType == "f64")
       bench_ = std::make_unique<RandomAccessBenchmarkGeneric<types::f64>>(e, args);
