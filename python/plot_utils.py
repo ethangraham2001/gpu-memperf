@@ -67,6 +67,7 @@ class PlotConfig:
     xlabel: str
     ylabel: str
     title: Optional[str] = None
+    subtitle: Optional[str] = None
     logx: bool = False
     logy: bool = False
     xticks: Optional[List] = None
@@ -144,6 +145,17 @@ def line_plot(x, ys, labels, *, outfile, cfg: PlotConfig):
     # Optional title
     if cfg.title:
         ax.set_title(cfg.title)
+
+    if cfg.subtitle:
+        ax.text(
+            x=0.5,
+            y=0.95,
+            s=cfg.subtitle,
+            ha="center",
+            transform=ax.transAxes,
+            fontsize=10,
+            color="gray",
+        )
 
     # Tick options
     if cfg.logx:
