@@ -113,7 +113,7 @@ __device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint6
 }
 
 /**
- * randomAccessKernelDispatch - dispatch kernel to select loader at compile time
+ * randomAccessKernelDispatch - dispatch kernel to select loader
  * 
  * Legacy specialized version kept for reference while getKernel handles loader dispatch.
  *
