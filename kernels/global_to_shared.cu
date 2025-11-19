@@ -9,12 +9,13 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
-__device__ void computeElem(types::f32* value, uint64_t numOps) {
+__device__ void computeElem(float* value, uint64_t numOps) {
   uint32_t tmp = *value;
 
   for (uint32_t i = 0; i < numOps; i++)
     tmp += tmp;
-  *value = tmp mod_power_of_2(1 << 16);
+  /* Writing it back into the value avoid optimization. */
+  *value = tmp;
 }
 
 /**
@@ -26,19 +27,19 @@ __device__ void computeElem(types::f32* value, uint64_t numOps) {
  * @numOps: the number of operations to perform for each value
  */
 template <uint32_t NumElems>
-__device__ void computeOnTile(types::f32 tile[NumElems], uint64_t numOps) {
+__device__ void computeOnTile(float tile[NumElems], uint64_t numOps) {
   for (uint32_t i = 0; i < NumElems; i += blockDim.x) {
     uint32_t idx = threadIdx.x + i;
     if (idx < NumElems) {
-      types::f32* ptr = &tile[i + threadIdx.x];
+      float* ptr = &tile[i + threadIdx.x];
       computeElem(ptr, numOps);
     }
   }
 }
 
 template <uint32_t TileSize>
-__global__ void globalToSharedMemSync(types::f32* globalBuffer, uint32_t globalBufferSize, uint64_t numOps) {
-  __shared__ types::f32 tile[TileSize / sizeof(types::f32)];
+__global__ void globalToSharedMemSync(float* globalBuffer, uint32_t globalBufferSize, uint64_t numOps) {
+  __shared__ float tile[TileSize / sizeof(float)];
 
   /* Every block reads a partition of the global buffer. */
   uint32_t totalTiles = globalBufferSize / ARRAY_SIZE(tile);
@@ -55,7 +56,7 @@ __global__ void globalToSharedMemSync(types::f32* globalBuffer, uint32_t globalB
     }
     __syncthreads();
     /* Compute using the data. */
-    computeOnTile<TileSize / sizeof(types::f32)>(tile, numOps);
+    computeOnTile<TileSize / sizeof(float)>(tile, numOps);
     __syncthreads();
   }
 }
@@ -70,9 +71,9 @@ __global__ void globalToSharedMemSync(types::f32* globalBuffer, uint32_t globalB
  */
 #pragma nv_diag_suppress static_var_with_dynamic_init
 template <uint32_t TileSize>
-__global__ void globalToSharedMemAsyncDoubleBuffered(types::f32* globalBuffer, uint32_t globalBufferSize,
+__global__ void globalToSharedMemAsyncDoubleBuffered(float* globalBuffer, uint32_t globalBufferSize,
                                                      uint64_t numFlops) {
-  __shared__ types::f32 tiles[2][TileSize / sizeof(types::f32)];
+  __shared__ float tiles[2][TileSize / sizeof(types::f32)];
   __shared__ cuda::barrier<cuda::thread_scope_block> barrier;
 
   /* Calculate this block's partition. */
@@ -112,7 +113,7 @@ __global__ void globalToSharedMemAsyncDoubleBuffered(types::f32* globalBuffer, u
 }
 
 template <uint32_t TileSize>
-using globalToSharedMemKernel = void (*)(types::f32*, uint32_t, uint64_t);
+using globalToSharedMemKernel = void (*)(float*, uint32_t, uint64_t);
 
 template <uint32_t TileSize>
 static globalToSharedMemKernel<TileSize> getKernel(globalToShared::mode mode) {
@@ -141,9 +142,9 @@ static globalToSharedMemKernel<TileSize> getKernel(globalToShared::mode mode) {
  * @numBlocks: the number of thread blocks.
  */
 template <uint32_t TileSize>
-float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<types::f32>& globalBuffer,
-                                 uint64_t numOps, uint64_t threadsPerBlock, uint64_t numBlocks) {
-  types::f32* dGlobalBuffer;
+float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<float>& globalBuffer, uint64_t numOps,
+                                 uint64_t threadsPerBlock, uint64_t numBlocks) {
+  float* dGlobalBuffer;
 
   throwOnErr(cudaMalloc(&dGlobalBuffer, globalBuffer.size() * sizeof(types::f32)));
   throwOnErr(
@@ -174,15 +175,13 @@ float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<ty
 }
 
 template float launchGlobalToSharedKernel<common::KiB>(globalToShared::mode mode,
-                                                       const std::vector<types::f32>& globalBuffer, uint64_t numFlops,
+                                                       const std::vector<float>& globalBuffer, uint64_t numFlops,
                                                        uint64_t threadsPerBlock, uint64_t numBlocks);
 
 template float launchGlobalToSharedKernel<2 * common::KiB>(globalToShared::mode mode,
-                                                           const std::vector<types::f32>& globalBuffer,
-                                                           uint64_t numFlops, uint64_t threadsPerBlock,
-                                                           uint64_t numBlocks);
+                                                           const std::vector<float>& globalBuffer, uint64_t numFlops,
+                                                           uint64_t threadsPerBlock, uint64_t numBlocks);
 
 template float launchGlobalToSharedKernel<4 * common::KiB>(globalToShared::mode mode,
-                                                           const std::vector<types::f32>& globalBuffer,
-                                                           uint64_t numFlops, uint64_t threadsPerBlock,
-                                                           uint64_t numBlocks);
+                                                           const std::vector<float>& globalBuffer, uint64_t numFlops,
+                                                           uint64_t threadsPerBlock, uint64_t numBlocks);

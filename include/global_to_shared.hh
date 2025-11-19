@@ -31,7 +31,7 @@ static __used std::string modeStr(mode modeArg) {
 } /* namespace globalToShared */
 
 template <uint32_t TileSize>
-float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<types::f32>& globalBuffer,
-                                 uint64_t numFlops, uint64_t threadsPerBlock, uint64_t numBlocks);
+float launchGlobalToSharedKernel(globalToShared::mode mode, const std::vector<float>& globalBuffer, uint64_t numFlops,
+                                 uint64_t threadsPerBlock, uint64_t numBlocks);
 
 #endif /* GLOBAL_TO_SHARED_HH */

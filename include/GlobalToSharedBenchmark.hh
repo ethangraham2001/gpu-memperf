@@ -53,7 +53,7 @@ class GlobalToSharedBenchmark {
 
         const uint32_t bufferSize = static_cast<uint32_t>(common::GiB);
         const auto numElems = util::countElements<uint32_t>(bufferSize);
-        const std::vector<types::f32> globalBuffer = util::randomVector<types::f32>(numElems);
+        const std::vector<float> globalBuffer = util::randomVector<float>(numElems);
 
         enc_[bandwidth] << "\t[tile size = " << tileSize << "]\n";
         const auto launcher = getLauncher(tileSize);
@@ -84,7 +84,7 @@ class GlobalToSharedBenchmark {
   uint64_t threadsPerBlock_;
   uint64_t numBlocks_;
 
-  using launcherFunc = float (*)(globalToShared::mode, const std::vector<types::f32>&, uint64_t, uint64_t, uint64_t);
+  using launcherFunc = float (*)(globalToShared::mode, const std::vector<float>&, uint64_t, uint64_t, uint64_t);
 
   double approxBandwidth(uint64_t cycles, uint64_t clockFreq, uint64_t numBytes) {
     return (double)numBytes / (double)cycles * (double)clockFreq;
