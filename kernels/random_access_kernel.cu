@@ -17,25 +17,15 @@
  * Using ca (cache all) modifier to prioritize L1 cache.
  */
 template <typename T>
-__device__ __forceinline__ void l1LoadElem(T* addr, uint64_t& sink) {
-  if constexpr (sizeof(T) == sizeof(types::f8)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+__device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.ca.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
+                 : "+f"(sink)
                  : "l"(addr)
                  : "memory");
   } else if constexpr (sizeof(T) == sizeof(types::f64)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+    asm volatile("{\t\n .reg .f64 data_reg;\n\t ld.global.ca.f64 data_reg, [%1];\n\t add.f64 %0, %0, data_reg;\n\t }"
+                 : "+d"(sink)
                  : "l"(addr)
                  : "memory");
   }
@@ -166,26 +156,40 @@ __global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t 
                                            uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
-  Loader<T> loader;
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
-  sink[tid] = localSink;
-}
+  
+  /* Shared memory to ensure that exactly one copy of each of these exists. */
+  __shared__ uint64_t sharedStart, sharedEnd;
+  uint64_t localSink = 0;
 
-/**
- * randomAccessWarmupDispatch - dispatch warmup kernel to select loader at compile time
- * 
- * After moving from per-thread timing to per-block timing with CUDA events,
- * leaving warmup in the measured kernel pulled those accesses into the event
- * window and skewed results. Warmup runs separately in its own kernel so that
- * the measured kernel contains only the work we actually want to time.
- */
-template <typename T, template <typename> class Loader>
-__global__ void randomAccessWarmupDispatch(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                           uint64_t* sink) {
-  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  uint64_t totalThreads = gridDim.x * blockDim.x;
-  Loader<T> loader;
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
+  /* Warm the cache. */
+  for (uint64_t i = 0; i < numAccesses; i++) {
+    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
+    l1LoadElem(&data[idx], localSink);
+  }
+
+  /* Sync on both ends of launching the timer for best accuracy - we don't want
+   * any threads to begin accessing data until the timer has started. */
+  __syncthreads();
+  if (threadIdx.x == 0)
+    sharedStart = clock64();
+  __syncthreads();
+
+  uint64_t start = clock64();
+  for (uint64_t i = 0; i < numAccesses; i++) {
+    uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
+    l1LoadElem(&data[idx], localSink);
+  }
+  uint64_t end = clock64();
+
+  /* Sync before stopping the global timer. Similarly to above, we don't want to
+   * be stopping the timer until all threads have finished their work. */
+  __syncthreads();
+  if (threadIdx.x == 0) {
+    sharedEnd = clock64();
+    *totalCycles = sharedEnd - sharedStart;
+  }
+
+  results[tid] = end - start;
   sink[tid] = localSink;
 }
 
@@ -316,11 +320,19 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
 /* The compiler complains when the concrete versions that we use aren't defined.
  * The implementation isn't required - just a header. So we declare a concrete
  * header for each version of randomAccessKernel that we use. */
-template uint64_t launchRandomAccessKernel<types::f8>(const std::vector<types::f8>&, const std::vector<uint32_t>&,
-                                                      uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
-template uint64_t launchRandomAccessKernel<types::f16>(const std::vector<types::f16>&, const std::vector<uint32_t>&,
-                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
-template uint64_t launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&, const std::vector<uint32_t>&,
-                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
-template uint64_t launchRandomAccessKernel<types::f64>(const std::vector<types::f64>&, const std::vector<uint32_t>&,
-                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
+template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f8>(const std::vector<types::f8>&,
+                                                                                        const std::vector<uint32_t>&,
+                                                                                        uint64_t, uint64_t, uint64_t,
+                                                                                        randomAccessKernel::mode);
+template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f16>(const std::vector<types::f16>&,
+                                                                                         const std::vector<uint32_t>&,
+                                                                                         uint64_t, uint64_t, uint64_t,
+                                                                                         randomAccessKernel::mode);
+template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&,
+                                                                                         const std::vector<uint32_t>&,
+                                                                                         uint64_t, uint64_t, uint64_t,
+                                                                                         randomAccessKernel::mode);
+template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f64>(const std::vector<types::f64>&,
+                                                                                         const std::vector<uint32_t>&,
+                                                                                         uint64_t, uint64_t, uint64_t,
+                                                                                         randomAccessKernel::mode);
