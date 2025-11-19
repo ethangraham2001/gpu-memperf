@@ -255,3 +255,87 @@ def plot_with_peak(
     outfile = _prepare_outfile(outfile)
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
+
+
+def plot_with_error_bars(
+    x,
+    y_triplets,
+    labels,
+    *,
+    outfile,
+    cfg: PlotConfig,
+    palette: Optional[Union[Dict, Sequence]] = None,
+    markers: Optional[Union[Dict, Sequence]] = None,
+    linewidth: float = 2.0,
+    capsize: float = 4.0,
+    fill_alpha: float = 0.12,
+    legend_title: Optional[str] = None,
+    legend_loc: str = "best",
+):
+    """Plot series that carry (low, center, high) measurements per x-point,
+    rendering both error bars and a translucent band between the bounds.
+
+    Args:
+        x: shared x values.
+        y_triplets: iterable of series, where each series entry is (low, mid, high).
+        labels: legend labels for each series.
+        outfile: output name.
+        cfg: PlotConfig.
+    """
+
+    init_style()
+    fig, ax = plt.subplots(figsize=cfg.figsize)
+
+    for idx, (series, label) in enumerate(zip(y_triplets, labels)):
+        if any(len(vals) != 3 for vals in series):
+            raise ValueError("Each measurement must contain exactly (low, mid, high) values.")
+        lows = [vals[0] for vals in series]
+        mids = [vals[1] for vals in series]
+        highs = [vals[2] for vals in series]
+        lower_err = [mid - low for mid, low in zip(mids, lows)]
+        upper_err = [high - mid for high, mid in zip(highs, mids)]
+        color = _resolve_style(palette, idx, label)
+        marker = _resolve_style(markers, idx, label) or "o"
+        err_container = ax.errorbar(
+            x,
+            mids,
+            yerr=[lower_err, upper_err],
+            marker=marker,
+            linestyle="-",
+            linewidth=linewidth,
+            color=color,
+            ecolor=color,
+            capsize=capsize,
+            label=label,
+        )
+        line = err_container[0]
+        shade_color = color or line.get_color()
+        if fill_alpha > 0:
+            ax.fill_between(x, lows, highs, color=shade_color, alpha=fill_alpha)
+
+    ax.set_xlabel(cfg.xlabel)
+    ax.set_ylabel(cfg.ylabel)
+
+    if cfg.title:
+        ax.set_title(cfg.title)
+    if cfg.logx:
+        ax.set_xscale("log")
+    if cfg.logy:
+        ax.set_yscale("log")
+    if cfg.xticks:
+        ax.set_xticks(cfg.xticks)
+        ax.set_xticklabels([str(xval) for xval in cfg.xticks])
+    if cfg.yticks:
+        ax.set_yticks(cfg.yticks)
+    if cfg.xlim:
+        ax.set_xlim(cfg.xlim)
+    if cfg.ylim:
+        ax.set_ylim(cfg.ylim)
+
+    ax.minorticks_off()
+    ax.legend(title=legend_title, loc=legend_loc)
+
+    fig.tight_layout()
+    outfile = _prepare_outfile(outfile)
+    fig.savefig(outfile, dpi=300)
+    print(f"Saved plot: {outfile}")
