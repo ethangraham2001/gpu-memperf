@@ -243,6 +243,11 @@ def plot_with_peak(
     if cfg.ylim:
         ax.set_ylim(cfg.ylim)
 
+    ax.set_facecolor("#EAEAF2")
+    ax.patch.set_alpha(0.4)
+    ax.grid(True, alpha=0.4, linestyle="--")
+    ax.set_axisbelow(True)
+
     ax.minorticks_off()
     ax.legend(title=legend_title, loc=legend_loc)
 
