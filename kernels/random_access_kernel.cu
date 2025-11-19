@@ -170,6 +170,12 @@ using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t,
 template <typename T>
 using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
 
+/**
+ * getKernel - select the appropriate kernel based on mode
+ * 
+ * @mode: cache mode
+ * @return: function pointer to the selected kernel
+ */
 template <typename T>
 static randomAccessKernelFunc<T> getKernel(randomAccessKernel::mode mode) {
   switch (mode) {
@@ -251,19 +257,6 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaEventCreate(&evStop));
   throwOnErr(cudaEventRecord(evStart));
 
-  auto warmupKernel = getWarmupKernel<T>(mode);
-  if (warmupKernel) {
-    warmupKernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-        dData, dIndices, data.size(), numAccesses, dSink);
-    throwOnErr(cudaDeviceSynchronize());
-  }
-
-  /* Initialize events for timing. */
-  cudaEvent_t evStart, evStop;
-  throwOnErr(cudaEventCreate(&evStart));
-  throwOnErr(cudaEventCreate(&evStop));
-  throwOnErr(cudaEventRecord(evStart));
-
   auto kernel = getKernel<T>(mode);
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
       dData, dIndices, numElems, numAccesses, dSink);
@@ -281,7 +274,6 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   cudaFree(dData);
   cudaFree(dIndices);
   cudaFree(dSink);
-  cudaFree(dSharedCycles);
 
   /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
   uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
