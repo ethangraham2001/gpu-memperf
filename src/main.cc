@@ -4,6 +4,7 @@
 #include <PchaseCPUBenchmark.hh>
 #include <PchaseGPUBenchmark.hh>
 #include <RandomAccessBenchmark.hh>
+#include <SharedToRegisterBenchmark.hh>
 #include <Util.hh>
 
 void __attribute__((noreturn)) usage() {

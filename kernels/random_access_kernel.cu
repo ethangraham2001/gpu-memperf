@@ -1,6 +1,6 @@
-#include <vector>
-
 #include <cuda.h>
+#include <cassert>
+#include <vector>
 
 #include <Types.hh>
 #include <cudaHelpers.cuh>
@@ -232,6 +232,12 @@ template <typename T>
 uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<uint32_t>& indices,
                                   uint64_t numAccesses, uint64_t threadsPerBlock, uint64_t numBlocks,
                                   randomAccessKernel::mode mode) {
+
+  uint64_t numElems = data.size();
+  uint64_t numIndices = indices.size();
+  assert(isPowerOf2(numElems));
+  assert(numElems == numIndices);
+
   uint64_t* dTimingResults;
   uint64_t* dSharedCycles;
   uint32_t* dIndices;
@@ -240,11 +246,11 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
 
   uint64_t totalThreads = numBlocks * threadsPerBlock;
 
-  throwOnErr(cudaMalloc(&dData, data.size() * sizeof(T)));
-  throwOnErr(cudaMemcpy(dData, data.data(), data.size() * sizeof(T), cudaMemcpyHostToDevice));
+  throwOnErr(cudaMalloc(&dData, numElems * sizeof(T)));
+  throwOnErr(cudaMemcpy(dData, data.data(), numElems * sizeof(T), cudaMemcpyHostToDevice));
 
-  throwOnErr(cudaMalloc(&dIndices, indices.size() * sizeof(uint32_t)));
-  throwOnErr(cudaMemcpy(dIndices, indices.data(), indices.size() * sizeof(uint32_t), cudaMemcpyHostToDevice));
+  throwOnErr(cudaMalloc(&dIndices, numIndices * sizeof(uint32_t)));
+  throwOnErr(cudaMemcpy(dIndices, indices.data(), numIndices * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
   throwOnErr(cudaMalloc(&dSink, totalThreads * sizeof(uint64_t)));
   throwOnErr(cudaMalloc(&dTimingResults, totalThreads * sizeof(uint64_t)));
@@ -265,7 +271,7 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
 
   auto kernel = getKernel<T>(mode);
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-      dData, dIndices, data.size(), numAccesses, dTimingResults, dSharedCycles, dSink);
+      dData, dIndices, numElems, numAccesses, dTimingResults, dSharedCycles, dSink);
 
   /* Measure using multiple thread blocks (host-side). */
   throwOnErr(cudaEventRecord(evStop));

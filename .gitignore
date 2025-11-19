@@ -6,5 +6,7 @@ test-memperf
 .local
 compile_commands.json
 .vscode
+logs/*
 pchase_cpu_??_??_??
 random_access_??_??_??
+
