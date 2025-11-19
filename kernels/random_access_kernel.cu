@@ -13,6 +13,8 @@
  *
  * Constexpr templating means that this if statement is never evaluated at
  * runtime on the device - it is evaluated statically.
+ * 
+ * Using ca (cache all) modifier to prioritize L1 cache.
  */
 template <typename T>
 __device__ __forceinline__ void l1LoadElem(T* addr, uint64_t& sink) {
@@ -70,6 +72,51 @@ __device__ __forceinline__ void l2LoadElem(T* addr, uint64_t& sink) {
 }
 
 /**
+ * dramLoadElem - inline PTX for loading an element from DRAM
+ *
+ * Using cv (cache volatile) modifier to bypass all caches.
+ */
+template <typename T>
+__device__ __forceinline__ void dramLoadElem(T* addr, uint64_t& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f8)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  } else if constexpr (sizeof(T) == sizeof(types::f64)) {
+    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.cv.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
+                 : "+l"(sink)
+                 : "l"(addr)
+                 : "memory");
+  }
+}
+
+template <typename T>
+struct L1Loader {
+  __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { l1LoadElem<T>(addr, sink); }
+};
+
+template <typename T>
+struct L2Loader {
+  __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { l2LoadElem<T>(addr, sink); }
+};
+
+template <typename T>
+struct DramLoader {
+  __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { dramLoadElem<T>(addr, sink); }
+};
+
+/**
  * accumulateRandomAccesses - shared access pattern for warmup and benchmark kernels
  * 
  * @tid: thread ID
@@ -93,8 +140,57 @@ __device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint6
 }
 
 /**
- * randomAccessKernelL1Warmup - warmup kernel to prime L1 cache before measurement.
+ * randomAccessKernelDispatch - dispatch kernel to select loader at compile time
  * 
+ * Legacy specialized version kept for reference while getKernel handles loader dispatch.
+ *
+ * The host must provide some set of random indices with the same cardinality as
+ * the data array which should be a permutation of range [0, numElems - 1].
+ *
+ * Access to the indices array is perfectly coalesced for maximum efficiency,
+ * and the indices contained within it should be well-distributed so that
+ * accesses are random.
+ * 
+ * @data: a data array of type T, which whould be a primitive type
+ * @indices: a random permutation of range [0, numElems - 1]
+ * @numElems: cardinality of @data and @indices
+ * @numAccesses: the number of accesses performed per thread
+ * @totalCycles: cycles for all threads to complete as measured by thread 0
+ * @sink[numThreads]: used to prevent compiler optimization - can be ignored
+ */
+template <typename T, template <typename> class Loader>
+__global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           uint64_t* sink) {
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  uint64_t totalThreads = gridDim.x * blockDim.x;
+  Loader<T> loader;
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
+  sink[tid] = localSink;
+}
+
+/**
+ * randomAccessWarmupDispatch - dispatch warmup kernel to select loader at compile time
+ * 
+ * After moving from per-thread timing to per-block timing with CUDA events,
+ * leaving warmup in the measured kernel pulled those accesses into the event
+ * window and skewed results. Warmup runs separately in its own kernel so that
+ * the measured kernel contains only the work we actually want to time.
+ */
+template <typename T, template <typename> class Loader>
+__global__ void randomAccessWarmupDispatch(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           uint64_t* sink) {
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  uint64_t totalThreads = gridDim.x * blockDim.x;
+  Loader<T> loader;
+  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
+  sink[tid] = localSink;
+}
+
+/**
+ * randomAccessKernelL1Warmup - warmup kernel to prime L1 cache before measurement.
+ *
+ * Legacy specialized version kept for reference while getWarmupKernel handles loader dispatch.
+ *
  * Moved out of the main kernel when switching to per-block timing with CUDA events.
  *
  * @data: data array
@@ -103,21 +199,24 @@ __device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint6
  * @numAccesses: number of accesses per thread
  * @sink: accumulator to prevent optimization
  */
-template <typename T>
-__global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                           uint64_t* sink) {
-  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  uint64_t totalThreads = gridDim.x * blockDim.x;
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
-  sink[tid] = localSink;
-}
+// template <typename T>
+// __global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+//                                            uint64_t* sink) {
+//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+//   uint64_t totalThreads = gridDim.x * blockDim.x;
+
+//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
+//   sink[tid] = localSink;
+// }
 
 /**
  * randomAccessKernelL2Warmup - warmup kernel to prime L2 cache before measurement.
- * 
- * After moving from per-thread timing to per-block timing with CUDA events, 
- * leaving warmup in the measured kernel pulled those accesses into the event 
- * window and skewed results. Warmup runs separately in its own kernel so that 
+ *
+ * Legacy specialized version kept for reference while getWarmupKernel handles loader dispatch.
+ *
+ * After moving from per-thread timing to per-block timing with CUDA events,
+ * leaving warmup in the measured kernel pulled those accesses into the event
+ * window and skewed results. Warmup runs separately in its own kernel so that
  * the measured kernel contains only the work we actually want to time.
  *
  * @data: data array
@@ -126,17 +225,35 @@ __global__ void randomAccessKernelL1Warmup(T* data, uint32_t* indices, uint64_t 
  * @numAccesses: number of accesses per thread
  * @sink: accumulator to prevent optimization
  */
-template <typename T>
-__global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                           uint64_t* sink) {
-  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  uint64_t totalThreads = gridDim.x * blockDim.x;
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
-  sink[tid] = localSink;
-}
+// template <typename T>
+// __global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+//                                            uint64_t* sink) {
+//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+//   uint64_t totalThreads = gridDim.x * blockDim.x;
+
+//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
+//   sink[tid] = localSink;
+// }
+
+/**
+ * randomAccessKernelDRAMWarmup - warmup kernel to prime DRAM before measurement.
+ *
+ * Legacy specialized version kept for reference while getWarmupKernel handles loader dispatch.
+ */
+// template <typename T>
+// __global__ void randomAccessKernelDRAMWarmup(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+//                                              uint64_t* sink) {
+//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+//   uint64_t totalThreads = gridDim.x * blockDim.x;
+
+//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, dramLoadElem<T>);
+//   sink[tid] = localSink;
+// }
 
 /**
  * randomAccessKernelL1 - L1 random access bandwidth measurement kernel
+ *
+ * Legacy specialized version kept for reference while getKernel handles loader dispatch.
  *
  * The host must provide some set of random indices with the same cardinality as
  * the data array which should be a permutation of range [0, numElems - 1].
@@ -153,22 +270,20 @@ __global__ void randomAccessKernelL2Warmup(T* data, uint32_t* indices, uint64_t 
  * @totalCycles: cycles for all threads to complete as measured by thread 0
  * @sink[numThreads]: used to prevent compiler optimization - can be ignored
  */
-template <typename T>
-__global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                     uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
-  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  uint64_t totalThreads = gridDim.x * blockDim.x;
+// template <typename T>
+// __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+//                                   uint64_t* totalCycles, uint64_t* sink) {
+//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+//   uint64_t totalThreads = gridDim.x * blockDim.x;
 
-  uint64_t start = clock64();
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
-  uint64_t end = clock64();
-
-  results[tid] = end - start;
-  sink[tid] = localSink;
-}
+//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
+//   sink[tid] = localSink;
+// }
 
 /**
  * randomAccessKernelL2 - L2 random access bandwidth measurement kernel.
+ *
+ * Legacy specialized version kept for reference while getKernel handles loader dispatch.
  *
  * @data: data array
  * @indices: random index array
@@ -178,56 +293,94 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
  * @totalCycles: unused after event timing (kept for compatibility)
  * @sink: accumulator to prevent optimization
  */
+// template <typename T>
+// __global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+//                                     uint64_t* totalCycles, uint64_t* sink) {
+//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+//   uint64_t totalThreads = gridDim.x * blockDim.x;
+
+//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
+//   sink[tid] = localSink;
+// }
+
+/**
+ * randomAccessKernelDRAM - DRAM random access bandwidth measurement kernel.
+ *
+ * Legacy specialized version kept for reference while getKernel handles loader dispatch.
+ */
+// template <typename T>
+// __global__ void randomAccessKernelDRAM(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+//                                       uint64_t* sharedCycles, uint64_t* sink) {
+//   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+//   uint64_t totalThreads = gridDim.x * blockDim.x;
+
+//   uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, dramLoadElem<T>);
+//   sink[tid] = localSink;
+// }
+
+/**
+ * Type aliases for function pointers to kernels
+ */
 template <typename T>
-__global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                     uint64_t* results, uint64_t* totalCycles, uint64_t* sink) {
-  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-  uint64_t totalThreads = gridDim.x * blockDim.x;
+using randomAccessKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
 
-  uint64_t start = clock64();
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l2LoadElem<T>);
-  uint64_t end = clock64();
-
-  results[tid] = end - start;
-  sink[tid] = localSink;
-}
-
-template <typename T>
-__global__ void randomAccessKernelDRAM(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                       uint64_t* results, uint64_t* sharedCycles, uint64_t* sink) { /* TODO */ }
-
-template <typename T>
-using randomAccessKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*, uint64_t*, uint64_t*);
-
+/**
+ * Type aliases for function pointers to warmup kernels
+ */
 template <typename T>
 using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
 
+/**
+ * getKernel - select the appropriate kernel based on mode
+ * 
+ * @mode: cache mode
+ * @return: function pointer to the selected kernel
+ */
 template <typename T>
 static randomAccessKernelFunc<T> getKernel(randomAccessKernel::mode mode) {
   switch (mode) {
     case randomAccessKernel::L1_CACHE:
-      return randomAccessKernelL1<T>;
+      return randomAccessKernelDispatch<T, L1Loader>;
     case randomAccessKernel::L2_CACHE:
-      return randomAccessKernelL2<T>;
+      return randomAccessKernelDispatch<T, L2Loader>;
     case randomAccessKernel::DRAM:
-      return randomAccessKernelDRAM<T>;
+      return randomAccessKernelDispatch<T, DramLoader>;
     default:
       throw std::invalid_argument("invalid mode");
   }
 }
 
+/**
+ * getWarmupKernel - select the appropriate warmup kernel based on mode
+ * 
+ * @mode: cache mode
+ * @return: function pointer to the selected warmup kernel
+ */
 template <typename T>
 static randomAccessWarmupKernelFunc<T> getWarmupKernel(randomAccessKernel::mode mode) {
   switch (mode) {
     case randomAccessKernel::L1_CACHE:
-      return randomAccessKernelL1Warmup<T>;
+      return randomAccessWarmupDispatch<T, L1Loader>;
     case randomAccessKernel::L2_CACHE:
-      return randomAccessKernelL2Warmup<T>;
+      return randomAccessWarmupDispatch<T, L2Loader>;
+    case randomAccessKernel::DRAM:
+      return randomAccessWarmupDispatch<T, DramLoader>;
     default:
       throw std::invalid_argument("getWarmupKernel: invalid mode");
   }
 }
 
+/**
+ * launchRandomAccessKernel - launch the random access kernel and measure time
+ *
+ * @data: data array
+ * @indices: random index array
+ * @numAccesses: number of accesses per thread
+ * @threadsPerBlock: number of threads per block
+ * @numBlocks: number of blocks
+ * @mode: cache mode
+ * @return: total cycles taken for the kernel to complete
+ */
 template <typename T>
 uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<uint32_t>& indices,
                                   uint64_t numAccesses, uint64_t threadsPerBlock, uint64_t numBlocks,
@@ -238,8 +391,6 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   assert(isPowerOf2(numElems));
   assert(numElems == numIndices);
 
-  uint64_t* dTimingResults;
-  uint64_t* dSharedCycles;
   uint32_t* dIndices;
   uint64_t* dSink;
   T* dData;
@@ -253,8 +404,6 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaMemcpy(dIndices, indices.data(), numIndices * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
   throwOnErr(cudaMalloc(&dSink, totalThreads * sizeof(uint64_t)));
-  throwOnErr(cudaMalloc(&dTimingResults, totalThreads * sizeof(uint64_t)));
-  throwOnErr(cudaMalloc(&dSharedCycles, sizeof(uint64_t)));
 
   auto warmupKernel = getWarmupKernel<T>(mode);
   if (warmupKernel) {
@@ -271,7 +420,7 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
 
   auto kernel = getKernel<T>(mode);
   kernel<<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-      dData, dIndices, numElems, numAccesses, dTimingResults, dSharedCycles, dSink);
+      dData, dIndices, numElems, numAccesses, dSink);
 
   /* Measure using multiple thread blocks (host-side). */
   throwOnErr(cudaEventRecord(evStop));
@@ -284,9 +433,8 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaGetLastError());
 
   cudaFree(dData);
-  cudaFree(dTimingResults);
+  cudaFree(dIndices);
   cudaFree(dSink);
-  cudaFree(dSharedCycles);
 
   /* Convert CUDA event time (ms) to cycles using GPU clock frequency */
   uint64_t hSharedCycles = static_cast<uint64_t>(ms * 1e-3 * getMaxClockFrequencyHz());
