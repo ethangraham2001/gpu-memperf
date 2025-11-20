@@ -1,9 +1,10 @@
-#include <cuda_runtime.h>
 #include <cassert>
-#include <clock64.hh>
-#include <cudaHelpers.cuh>
 
-#include "shared_to_register_kernel.hh"
+#include <cuda_runtime.h>
+
+#include <cudaHelpers.cuh>
+#include <device_attributes.hh>
+#include <shared_to_register_kernel.hh>
 
 template <sharedToRegister::mode MODE>
 __global__ void sharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t stride, uint64_t* cycle) {

@@ -65,3 +65,12 @@ unsigned int getMaxClockFrequencyHz() {
   nvmlShutdown();
   return clockMHz * 1000000U;
 }
+
+unsigned int getSmCount(int device) {
+  cudaDeviceProp prop;
+
+  throwOnErr(cudaGetDevice(&device));
+  throwOnErr(cudaGetDeviceProperties(&prop, device));
+
+  return prop.multiProcessorCount;
+}
