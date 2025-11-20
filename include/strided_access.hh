@@ -7,13 +7,15 @@
  */
 #ifndef STRIDED_ACCESS_HH
 #define STRIDED_ACCESS_HH
-#include "CachePolicy.hh"
 
 #include <cstdint>
+#include <vector>
+
+#include <CachePolicy.hh>
 
 /** Host-callable wrapper. Times the kernel with CUDA events. */
-template <typename T>
-void launchStridedAccessKernel(const std::vector<T>& data, cacheload::CachePolicy policy, uint64_t stride,
-                               uint64_t iters, uint64_t threadsPerBlock, uint64_t numBlocks, uint64_t* totalCycles);
+template <typename T, cacheload::CachePolicy>
+float launchStridedAccessKernel(const std::vector<T>& data, uint64_t stride, uint64_t iters, uint64_t threadsPerBlock,
+                                uint64_t numBlocks);
 
 #endif /* STRIDED_ACCESS_HH */

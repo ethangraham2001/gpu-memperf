@@ -40,20 +40,20 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
  public:
   StridedAccessBenchmarkGeneric(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
-    mode = parser.getOr("mode", std::string("L1"));
+    mode_ = parser.getOr("mode", std::string("L1"));
     strides_ = parser.getOr<std::vector<uint64_t>>("stride", {1, 2, 4, 8, 16, 32});
     iters_ = parser.getOr("iters", 1000000UL);
     threadsPerBlock_ = static_cast<int>(parser.getOr("threads_per_block", common::maxThreadsPerBlock));
     numBlocks_ = static_cast<int>(parser.getOr("blocks", 0UL)); /* 0 => auto (SM count). */
 
     /* TODO: Refactor with RandomAccessBenchmark */
-    if (mode == "L1") {
+    if (mode_ == "L1") {
       workingSetSize_ = 100 * common::KiB; /* L1. */
       cachePolicy_ = cacheload::CachePolicy::L1;
-    } else if (mode == "L2") {
+    } else if (mode_ == "L2") {
       workingSetSize_ = 25 * common::MiB; /* L2. */
       cachePolicy_ = cacheload::CachePolicy::L2;
-    } else if (mode == "DRAM") {
+    } else if (mode_ == "DRAM") {
       workingSetSize_ = 2 * common::GiB; /* DRAM. */
       cachePolicy_ = cacheload::CachePolicy::DRAM;
     } else {
@@ -68,30 +68,28 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
       numBlocks_ = getSmCount(0);
 
     const uint64_t numElems = util::bytesToNumElems<DataType>(workingSetSize_);
-    if (!numElems) {
+    if (!numElems)
       throw std::runtime_error("working_set too small");
-    }
 
-    std::vector<DataType> hostData(numElems);
+    std::vector<DataType> hostData = util::randomVector<DataType>(numElems);
 
-    uint32_t clockFreq_ = getMaxClockFrequencyHz();
     enc_["bandwidth.csv"] << "blocks,threads_per_block,working_set,iters,stride,bandwidth\n";
 
     for (uint64_t stride_ : strides_) {
 
-      uint64_t cycles = 0UL;
-      launchStridedAccessKernel(hostData, cachePolicy_, stride_, iters_, threadsPerBlock_, numBlocks_, &cycles);
+      const auto kernelLauncher = getLauncher(cachePolicy_);
+      float milliseconds = kernelLauncher(hostData, stride_, iters_, threadsPerBlock_, numBlocks_);
+
       const uint64_t bytesRead =
           static_cast<uint64_t>(numBlocks_) * static_cast<uint64_t>(threadsPerBlock_) * iters_ * sizeof(DataType);
 
-      double seconds = (double)cycles / (double)clockFreq_;
-      double bandwidth = (double)bytesRead / (double)seconds;
+      double bandwidth = (double)bytesRead / ((double)milliseconds / 1000.0);
 
       enc_["bandwidth.csv"] << numBlocks_ << "," << threadsPerBlock_ << ","
                             << util::formatBytes((double)workingSetSize_) << "," << iters_ << "," << stride_ << ","
                             << bandwidth << "\n";
 
-      enc_.log() << "Memory: " << mode << " Stride: " << stride_ << " BW:" << util::formatBytes(bandwidth) << "\n";
+      enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(bandwidth) << "\n";
     }
   }
 
@@ -102,15 +100,30 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
   uint64_t iters_;
   int threadsPerBlock_;
   int numBlocks_;
-  std::string mode;
+  std::string mode_;
   cacheload::CachePolicy cachePolicy_{cacheload::CachePolicy::L1};
+
+  using launcher = float (*)(const std::vector<DataType>&, uint64_t, uint64_t, uint64_t, uint64_t);
+
+  launcher getLauncher(cacheload::CachePolicy policy) {
+    switch (policy) {
+      case cacheload::CachePolicy::L1:
+        return launchStridedAccessKernel<DataType, cacheload::CachePolicy::L1>;
+      case cacheload::CachePolicy::L2:
+        return launchStridedAccessKernel<DataType, cacheload::CachePolicy::L2>;
+      case cacheload::CachePolicy::DRAM:
+        return launchStridedAccessKernel<DataType, cacheload::CachePolicy::DRAM>;
+      default:
+        throw std::invalid_argument("StridedAccessBenchmark: invalid mode");
+    }
+  }
 };
 
 /**
  * StridedAccessBenchmark - dynamic dispatcher for templated benchmarks
  *
- * Implements dynamic dispatch for templated strided access benchmarks with a set
- * of supported types (f8 through to f64).
+ * Implements dynamic dispatch for templated strided access benchmarks with a
+ * set of supported types (f32 and f64).
  */
 class StridedAccessBenchmark : public StridedAccessBenchmarkBase {
  public:
@@ -118,7 +131,7 @@ class StridedAccessBenchmark : public StridedAccessBenchmarkBase {
 
   StridedAccessBenchmark(Encoder& e, const std::vector<std::string>& args) {
     benchmark::ArgParser parser(args);
-    dataType_ = parser.getOr("data_type", std::string("int32"));
+    dataType_ = parser.getOr("data_type", std::string("f32"));
 
     if (dataType_ == "f32")
       bench_ = std::make_unique<StridedAccessBenchmarkGeneric<types::f32>>(e, args);
