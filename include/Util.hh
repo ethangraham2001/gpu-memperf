@@ -42,6 +42,13 @@ static const std::vector<T> permutation(uint64_t n) {
   return out;
 }
 
+template <typename T>
+uint64_t bytesToNumElems(uint64_t bytes) {
+  if (bytes % sizeof(T))
+    throw std::invalid_argument("bytes can not be perfectly divided");
+  return bytes / sizeof(T);
+}
+
 /**
  * formatBytes - format some number of bytes in human readable form
  *
