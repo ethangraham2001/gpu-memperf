@@ -13,25 +13,15 @@
  * runtime on the device - it is evaluated statically.
  */
 template <typename T>
-__device__ __forceinline__ void l1LoadElem(T* addr, uint64_t& sink) {
-  if constexpr (sizeof(T) == sizeof(types::f8)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u8 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u16 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
-                 : "l"(addr)
-                 : "memory");
-  } else if constexpr (sizeof(T) == sizeof(types::f32)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u32 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+__device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
+  if constexpr (sizeof(T) == sizeof(types::f32)) {
+    asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.ca.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
+                 : "+f"(sink)
                  : "l"(addr)
                  : "memory");
   } else if constexpr (sizeof(T) == sizeof(types::f64)) {
-    asm volatile("{\t\n .reg .u64 data64;\n\t ld.global.ca.u64 data64, [%1];\n\t add.u64 %0, %0, data64;\n\t }"
-                 : "+l"(sink)
+    asm volatile("{\t\n .reg .f64 data_reg;\n\t ld.global.ca.f64 data_reg, [%1];\n\t add.f64 %0, %0, data_reg;\n\t }"
+                 : "+d"(sink)
                  : "l"(addr)
                  : "memory");
   }
@@ -62,7 +52,7 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
   uint64_t totalThreads = gridDim.x * blockDim.x;
   /* Shared memory to ensure that exactly one copy of each of these exists. */
   __shared__ uint64_t sharedStart, sharedEnd;
-  uint64_t localSink = 0;
+  T localSink = 0;
 
   /* Warm the cache. */
   for (uint64_t i = 0; i < numAccesses; i++) {
@@ -177,14 +167,6 @@ std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel(const std::v
 /* The compiler complains when the concrete versions that we use aren't defined.
  * The implementation isn't required - just a header. So we declare a concrete
  * header for each version of randomAccessKernel that we use. */
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f8>(const std::vector<types::f8>&,
-                                                                                        const std::vector<uint32_t>&,
-                                                                                        uint64_t, uint64_t, uint64_t,
-                                                                                        randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f16>(const std::vector<types::f16>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
 template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&,
                                                                                          const std::vector<uint32_t>&,
                                                                                          uint64_t, uint64_t, uint64_t,
