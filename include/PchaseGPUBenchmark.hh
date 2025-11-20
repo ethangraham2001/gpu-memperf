@@ -7,9 +7,9 @@
 
 #include <ArgParser.hh>
 #include <Benchmark.hh>
-#include "Util.hh"
+#include <Util.hh>
 
-#include <clock64.hh>
+#include <device_attributes.hh>
 #include <pchase.hh>
 
 /**

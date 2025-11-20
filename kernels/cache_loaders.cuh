@@ -10,31 +10,19 @@ namespace cacheload {
 template <CachePolicy P, typename T>
 __device__ __forceinline__ void loadElem(const T* addr, uint64_t& sink) {
   if constexpr (P == CachePolicy::L1) { /* L1 */
-    if constexpr (sizeof(T) == sizeof(types::f8)) {
-      asm volatile("{ .reg .u64 r; ld.global.ca.u8  r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
-    } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-      asm volatile("{ .reg .u64 r; ld.global.ca.u16 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
-    } else if constexpr (sizeof(T) == sizeof(types::f32)) {
+    if constexpr (sizeof(T) == sizeof(types::f32)) {
       asm volatile("{ .reg .u64 r; ld.global.ca.u32 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
     } else if constexpr (sizeof(T) == sizeof(types::f64)) {
       asm volatile("{ .reg .u64 r; ld.global.ca.u64 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
     }
   } else if constexpr (P == CachePolicy::L2) { /* L2 */
-    if constexpr (sizeof(T) == sizeof(types::f8)) {
-      asm volatile("{ .reg .u64 r; ld.global.cg.u8  r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
-    } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-      asm volatile("{ .reg .u64 r; ld.global.cg.u16 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
-    } else if constexpr (sizeof(T) == sizeof(types::f32)) {
+    if constexpr (sizeof(T) == sizeof(types::f32)) {
       asm volatile("{ .reg .u64 r; ld.global.cg.u32 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
     } else if constexpr (sizeof(T) == sizeof(types::f64)) {
       asm volatile("{ .reg .u64 r; ld.global.cg.u64 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
     }
   } else { /* DRAM */
-    if constexpr (sizeof(T) == sizeof(types::f8)) {
-      asm volatile("{ .reg .u64 r; ld.global.cv.u8  r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
-    } else if constexpr (sizeof(T) == sizeof(types::f16)) {
-      asm volatile("{ .reg .u64 r; ld.global.cv.u16 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
-    } else if constexpr (sizeof(T) == sizeof(types::f32)) {
+    if constexpr (sizeof(T) == sizeof(types::f32)) {
       asm volatile("{ .reg .u64 r; ld.global.cv.u32 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");
     } else if constexpr (sizeof(T) == sizeof(types::f64)) {
       asm volatile("{ .reg .u64 r; ld.global.cv.u64 r, [%1]; add.u64 %0,%0,r; }" : "+l"(sink) : "l"(addr) : "memory");

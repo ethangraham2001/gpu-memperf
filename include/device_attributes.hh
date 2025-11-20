@@ -9,4 +9,7 @@ double measureClock64Latency(uint64_t iters);
 /** Returns the maximum clock frequency in Hz. */
 unsigned int getMaxClockFrequencyHz();
 
+/** Returns the number of SMs on device 0 */
+unsigned int getSmCount(int device);
+
 #endif /* CLOCK64_HH */

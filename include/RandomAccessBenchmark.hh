@@ -11,7 +11,8 @@
 #include <Encoder.hh>
 #include <Types.hh>
 #include <Util.hh>
-#include <clock64.hh>
+
+#include <device_attributes.hh>
 #include <random_access_kernel.hh>
 
 /**

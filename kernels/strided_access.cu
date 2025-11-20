@@ -130,12 +130,6 @@ void launchStridedAccessKernel(const std::vector<T>& data, cacheload::CachePolic
  * The implementation isn't required - just a header. So we declare a concrete
  * header for each version of stridedAccessKernel that we use. */
 
-template void launchStridedAccessKernel<types::f8>(const std::vector<types::f8>&, cacheload::CachePolicy, uint64_t,
-                                                   uint64_t, uint64_t, uint64_t, uint64_t*);
-
-template void launchStridedAccessKernel<types::f16>(const std::vector<types::f16>&, cacheload::CachePolicy, uint64_t,
-                                                    uint64_t, uint64_t, uint64_t, uint64_t*);
-
 template void launchStridedAccessKernel<types::f32>(const std::vector<types::f32>&, cacheload::CachePolicy, uint64_t,
                                                     uint64_t, uint64_t, uint64_t, uint64_t*);
 
