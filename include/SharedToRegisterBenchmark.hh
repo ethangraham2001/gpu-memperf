@@ -1,7 +1,6 @@
 #ifndef SHARED_TO_REGISTER_BENCHMARK_HH
 #define SHARED_TO_REGISTER_BENCHMARK_HH
 
-#include <algorithm>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -9,9 +8,9 @@
 #include <ArgParser.hh>
 #include <Benchmark.hh>
 #include <Util.hh>
-#include <clock64.hh>
+#include <device_attributes.hh>
 
-#include "shared_to_register_kernel.hh"
+#include <shared_to_register_kernel.hh>
 
 class SharedToRegisterBenchmark {
  public:

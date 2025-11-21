@@ -8,17 +8,17 @@
 #ifndef STRIDED_ACCESS_BENCHMARK_HH
 #define STRIDED_ACCESS_BENCHMARK_HH
 
-#include <cuda.h>
-#include <cudaHelpers.cuh>
+#include <Types.hh>
+#include <device_attributes.hh>
 #include <stdexcept>
 #include <vector>
 
-#include <cuda_runtime.h>
 #include <ArgParser.hh>
 #include <Benchmark.hh>
 #include <CachePolicy.hh>
 #include <Common.hh>
 #include <Encoder.hh>
+#include <Util.hh>
 #include <strided_access.hh>
 
 /**
@@ -64,14 +64,8 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
   std::string name() const { return std::string("strided_access") + typeid(DataType).name(); }
 
   void run() {
-    int device = 0;
-    cudaDeviceProp prop{};
-    throwOnErr(cudaGetDevice(&device));
-    throwOnErr(cudaGetDeviceProperties(&prop, device));
-
-    if (numBlocks_ <= 0) {
-      numBlocks_ = prop.multiProcessorCount;
-    }
+    if (numBlocks_ <= 0)
+      numBlocks_ = getSmCount(0);
 
     const uint64_t numElems = util::bytesToNumElems<DataType>(workingSetSize_);
     if (!numElems) {
@@ -126,11 +120,7 @@ class StridedAccessBenchmark : public StridedAccessBenchmarkBase {
     benchmark::ArgParser parser(args);
     dataType_ = parser.getOr("data_type", std::string("int32"));
 
-    if (dataType_ == "f8")
-      bench_ = std::make_unique<StridedAccessBenchmarkGeneric<types::f8>>(e, args);
-    else if (dataType_ == "f16")
-      bench_ = std::make_unique<StridedAccessBenchmarkGeneric<types::f16>>(e, args);
-    else if (dataType_ == "f32")
+    if (dataType_ == "f32")
       bench_ = std::make_unique<StridedAccessBenchmarkGeneric<types::f32>>(e, args);
     else if (dataType_ == "f64")
       bench_ = std::make_unique<StridedAccessBenchmarkGeneric<types::f64>>(e, args);
