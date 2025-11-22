@@ -30,108 +30,95 @@
  *               unless a per-block buffer is used.
  */
 
-template <typename T, typename Loader>
-__global__ void stridedReadKernel(const T* data, uint64_t numElems, uint64_t stride, uint64_t iters, uint64_t* sink,
-                                  uint64_t* blockCycles, Loader load) {
+template <typename T, cacheload::CachePolicy policy>
+__global__ void stridedReadKernel(const T* data, uint64_t numElems, uint64_t stride, uint64_t iters, uint64_t* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
 
-  __shared__ uint64_t start, end;
+  auto load = cacheload::Loader<policy>{};
 
   /* Accumulate to prevent the compiler from eliding loads. */
   uint64_t acc = 0;
 
-  /* Warmup to populate L1. */
+  __syncthreads();
+
   for (uint64_t i = 0; i < iters; i++) {
     uint64_t idx = ((tid + i * totalThreads) * stride) mod_power_of_2(numElems);
     load(&data[idx], acc);
   }
 
   __syncthreads();
-
-  if (threadIdx.x == 0)
-    start = clock64();
-
-  __syncthreads();
-
-  /* Timed section: perform iters strided loads. */
-  for (uint64_t i = 0; i < iters; i++) {
-    uint64_t idx = ((tid + i * totalThreads) * stride) mod_power_of_2(numElems);
-    load(&data[idx], acc);
-  }
-
-  __syncthreads();
-
-  if (threadIdx.x == 0) {
-    end = clock64();
-    blockCycles[blockIdx.x] = end - start;
-  }
 
   sink[tid] = acc;
 }
 
-template <typename T>
-void launchStridedAccessKernel(const std::vector<T>& data, cacheload::CachePolicy policy, uint64_t stride,
-                               uint64_t iters, uint64_t threadsPerBlock, uint64_t numBlocks, uint64_t* totalCycles) {
+template <typename T, cacheload::CachePolicy policy>
+float launchStridedAccessKernel(const std::vector<T>& data, uint64_t stride, uint64_t iters, uint64_t threadsPerBlock,
+                                uint64_t numBlocks) {
 
   uint64_t totalThreads = threadsPerBlock * numBlocks;
-
-  T* dData;
   uint64_t* dSink;
-  uint64_t* dBlockCycles;
+  T* dData;
 
   throwOnErr(cudaMalloc(&dData, data.size() * sizeof(T)));
   throwOnErr(cudaMemcpy(dData, data.data(), data.size() * sizeof(T), cudaMemcpyHostToDevice));
 
   throwOnErr(cudaMalloc(&dSink, totalThreads * sizeof(uint64_t)));
-  throwOnErr(cudaMalloc(&dBlockCycles, numBlocks * sizeof(uint64_t)));
 
-  switch (policy) {
-    case cacheload::CachePolicy::L1: {
-      stridedReadKernel<T, cacheload::L1Loader>
-          <<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-              dData, data.size(), stride, iters, dSink, dBlockCycles, cacheload::L1Loader{});
-      break;
-    }
-    case cacheload::CachePolicy::L2: {
-      stridedReadKernel<T, cacheload::L2Loader>
-          <<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-              dData, data.size(), stride, iters, dSink, dBlockCycles, cacheload::L2Loader{});
-      break;
-    }
-    case cacheload::CachePolicy::DRAM: {
-      stridedReadKernel<T, cacheload::DramLoader>
-          <<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
-              dData, data.size(), stride, iters, dSink, dBlockCycles, cacheload::DramLoader{});
-      break;
-    }
+  /* Warmup loop for L1 and L2 cache - data will not be evicted from cache as we
+   * do not free the device pointer. */
+  if constexpr (policy == cacheload::CachePolicy::L1 || policy == cacheload::CachePolicy::L2) {
+    stridedReadKernel<T, policy><<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
+        dData, data.size(), stride, iters, dSink);
   }
-
   throwOnErr(cudaDeviceSynchronize());
-
   throwOnErr(cudaGetLastError());
 
-  std::vector<uint64_t> hCycles(numBlocks);
-  throwOnErr(cudaMemcpy(hCycles.data(), dBlockCycles, numBlocks * sizeof(uint64_t), cudaMemcpyDeviceToHost));
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
 
-  uint64_t maxCycles = 0;
-  for (auto c : hCycles)
-    if (c > maxCycles)
-      maxCycles = c;
-  if (totalCycles)
-    *totalCycles = maxCycles;
+  cudaEventRecord(start);
+  stridedReadKernel<T, policy><<<static_cast<unsigned int>(numBlocks), static_cast<unsigned int>(threadsPerBlock)>>>(
+      dData, data.size(), stride, iters, dSink);
 
-  cudaFree(dData);
-  cudaFree(dSink);
-  cudaFree(dBlockCycles);
+  cudaEventRecord(stop);
+  cudaEventSynchronize(stop);
+
+  throwOnErr(cudaDeviceSynchronize());
+  throwOnErr(cudaGetLastError());
+  throwOnErr(cudaFree(dData));
+  throwOnErr(cudaFree(dSink));
+
+  float milliseconds;
+  throwOnErr(cudaEventElapsedTime(&milliseconds, start, stop));
+  return milliseconds;
 }
 
 /* The compiler complains when the concrete versions that we use aren't defined.
  * The implementation isn't required - just a header. So we declare a concrete
  * header for each version of stridedAccessKernel that we use. */
 
-template void launchStridedAccessKernel<types::f32>(const std::vector<types::f32>&, cacheload::CachePolicy, uint64_t,
-                                                    uint64_t, uint64_t, uint64_t, uint64_t*);
+template float launchStridedAccessKernel<types::f32, cacheload::CachePolicy::DRAM>(const std::vector<types::f32>&,
+                                                                                   uint64_t, uint64_t, uint64_t,
+                                                                                   uint64_t);
 
-template void launchStridedAccessKernel<types::f64>(const std::vector<types::f64>&, cacheload::CachePolicy, uint64_t,
-                                                    uint64_t, uint64_t, uint64_t, uint64_t*);
+template float launchStridedAccessKernel<types::f64, cacheload::CachePolicy::DRAM>(const std::vector<types::f64>&,
+                                                                                   uint64_t, uint64_t, uint64_t,
+                                                                                   uint64_t);
+
+template float launchStridedAccessKernel<types::f32, cacheload::CachePolicy::L2>(const std::vector<types::f32>&,
+                                                                                 uint64_t, uint64_t, uint64_t,
+                                                                                 uint64_t);
+
+template float launchStridedAccessKernel<types::f64, cacheload::CachePolicy::L2>(const std::vector<types::f64>&,
+                                                                                 uint64_t, uint64_t, uint64_t,
+                                                                                 uint64_t);
+
+template float launchStridedAccessKernel<types::f32, cacheload::CachePolicy::L1>(const std::vector<types::f32>&,
+                                                                                 uint64_t, uint64_t, uint64_t,
+                                                                                 uint64_t);
+
+template float launchStridedAccessKernel<types::f64, cacheload::CachePolicy::L1>(const std::vector<types::f64>&,
+                                                                                 uint64_t, uint64_t, uint64_t,
+                                                                                 uint64_t);
