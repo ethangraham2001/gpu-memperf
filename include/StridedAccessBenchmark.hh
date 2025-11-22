@@ -71,9 +71,7 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
     if (!numElems)
       throw std::runtime_error("working_set too small");
 
-    std::vector<DataType> hostData(numElems);
-    /* TODO: use util::randomVector when that is merged. */
-    std::iota(hostData.begin(), hostData.end(), numElems);
+    std::vector<DataType> hostData = util::randomVector<DataType>(numElems);
 
     enc_["bandwidth.csv"] << "blocks,threads_per_block,working_set,iters,stride,bandwidth\n";
 
