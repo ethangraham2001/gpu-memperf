@@ -18,11 +18,11 @@ class SharedToRegisterBenchmark {
 
   SharedToRegisterBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
-    sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768, 49152});
+    sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768 });
     threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256, 512});
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
     elemBytes_ = 4UL;
-    numIters_ = parser.getOr("num_iters", 10000UL);
+    numIters_ = parser.getOr("num_iters", 100000UL);
     reps_ = parser.getOr("reps", 3UL);
 
     std::string modeStr = parser.getOr("mode", std::string(sharedToRegister::modeRead));

@@ -26,15 +26,16 @@ __global__ void sharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uin
 
   /* Loop over shared memory with given stride. */
   for (uint32_t i = 0; i < numIters; ++i) {
-    uint32_t offset = ((tid + i) * stride) & mask;
+    uint32_t offset = (tid % 32) * stride;  /* Bank offset */
+    uint32_t address = (i + offset) & mask;  /* Prevent optimization between iterations */
 
     if constexpr (MODE == sharedToRegister::READ) {
-      tmp += sharedMem[offset];
+      tmp += sharedMem[address];
     } else if constexpr (MODE == sharedToRegister::WRITE) {
-      sharedMem[offset] = tid + i;
+      sharedMem[address] = tid + i;
     } else {
-      uint64_t v = sharedMem[offset];
-      sharedMem[offset] = v + 1;
+      uint64_t v = sharedMem[address];
+      sharedMem[address] = v + 1;
     }
   }
 
@@ -55,7 +56,7 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
                   uint64_t* cycle) {
   cudaError_t err;
   const dim3 block(threads);
-  const uint32_t warmupIters = 256;
+  const uint32_t warmupIters = 1000;
   uint64_t warmupCycle = 0;
 
   /* Warmup launch. */
