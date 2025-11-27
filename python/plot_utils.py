@@ -32,7 +32,6 @@ def init_style():
     - Research paper aesthetic
     - Inside ticks on all sides
     - Major ticks only
-    - Grid disabled
     - Smaller markers/lines
     - Legend without frame
     """
@@ -75,6 +74,7 @@ class PlotConfig:
     figsize: tuple = (8, 5)
     xlim: Optional[tuple] = None
     ylim: Optional[tuple] = None
+    grid: bool = True
 
 
 def _prepare_outfile(outfile) -> Path:
@@ -175,6 +175,10 @@ def line_plot(x, ys, labels, *, outfile, cfg: PlotConfig):
 
     # Only show major ticks
     ax.minorticks_off()
+
+    if cfg.grid:
+        ax.grid(True, alpha=0.4, linestyle="--")
+        ax.set_axisbelow(True)
 
     # Legend
     ax.legend()
