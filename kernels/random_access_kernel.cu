@@ -13,7 +13,7 @@
  *
  * Constexpr templating means that this if statement is never evaluated at
  * runtime on the device - it is evaluated statically.
- * 
+ *
  * Using ca (cache all) modifier to prioritize L1 cache.
  */
 template <typename T>
@@ -71,7 +71,7 @@ __device__ __forceinline__ void dramLoadElem(const T* addr, T& sink) {
   }
 }
 
-/** 
+/**
  * Loader structs to wrap load functions at compile time - L1, L2, DRAM
  */
 template <typename T>
@@ -91,7 +91,7 @@ struct DramLoader {
 
 /**
  * accumulateRandomAccesses - shared access pattern for warmup and benchmark kernels
- * 
+ *
  * @tid: thread ID
  * @totalThreads: total number of threads
  * @data: data array
@@ -114,7 +114,7 @@ __device__ __forceinline__ T accumulateRandomAccesses(uint64_t tid, uint64_t tot
 
 /**
  * randomAccessKernelDispatch - dispatch kernel to select loader
- * 
+ *
  * Legacy specialized version kept for reference while getKernel handles loader dispatch.
  *
  * The host must provide some set of random indices with the same cardinality as
@@ -123,7 +123,7 @@ __device__ __forceinline__ T accumulateRandomAccesses(uint64_t tid, uint64_t tot
  * Access to the indices array is perfectly coalesced for maximum efficiency,
  * and the indices contained within it should be well-distributed so that
  * accesses are random.
- * 
+ *
  * @data: a data array of type T, which whould be a primitive type
  * @indices: a random permutation of range [0, numElems - 1]
  * @numElems: cardinality of @data and @indices
@@ -143,7 +143,7 @@ __global__ void randomAccessKernelDispatch(const T* data, uint32_t* indices, uin
 
 /**
  * randomAccessWarmupDispatch - dispatch warmup kernel to select loader at compile time
- * 
+ *
  * After moving from per-thread timing to per-block timing with CUDA events,
  * leaving warmup in the measured kernel pulled those accesses into the event
  * window and skewed results. Warmup runs separately in its own kernel so that
@@ -173,7 +173,7 @@ using randomAccessWarmupKernelFunc = void (*)(const T*, uint32_t*, uint64_t, uin
 
 /**
  * getKernel - select the appropriate kernel based on mode
- * 
+ *
  * @mode: cache mode
  * @return: function pointer to the selected kernel
  */
@@ -193,7 +193,7 @@ static randomAccessKernelFunc<T> getKernel(randomAccessKernel::mode mode) {
 
 /**
  * getWarmupKernel - select the appropriate warmup kernel based on mode
- * 
+ *
  * @mode: cache mode
  * @return: function pointer to the selected warmup kernel
  */
