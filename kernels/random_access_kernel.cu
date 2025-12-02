@@ -6,7 +6,7 @@
 #include <cudaHelpers.cuh>
 #include <random_access_kernel.hh>
 
-#include <clock64.hh>
+#include <device_attributes.hh>
 
 /**
  * l1LoadElem - inline PTX for loading an element from L1 cache
@@ -17,7 +17,7 @@
  * Using ca (cache all) modifier to prioritize L1 cache.
  */
 template <typename T>
-__device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
+__device__ __forceinline__ void l1LoadElem(const T* addr, T& sink) {
   if constexpr (sizeof(T) == sizeof(types::f32)) {
     asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.ca.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
                  : "+f"(sink)
@@ -37,7 +37,7 @@ __device__ __forceinline__ void l1LoadElem(T* addr, T& sink) {
  * Using cg (cache global) modifier to bypass L1 cache.
  */
 template <typename T>
-__device__ __forceinline__ void l2LoadElem(T* addr, T& sink) {
+__device__ __forceinline__ void l2LoadElem(const T* addr, T& sink) {
   if constexpr (sizeof(T) == sizeof(types::f32)) {
     asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.cg.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
                  : "+f"(sink)
@@ -57,14 +57,14 @@ __device__ __forceinline__ void l2LoadElem(T* addr, T& sink) {
  * Using cv (cache volatile) modifier to bypass all caches.
  */
 template <typename T>
-__device__ __forceinline__ void dramLoadElem(T* addr, T& sink) {
+__device__ __forceinline__ void dramLoadElem(const T* addr, T& sink) {
   if constexpr (sizeof(T) == sizeof(types::f32)) {
-    asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.cg.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
+    asm volatile("{\t\n .reg .f32 data_reg;\n\t ld.global.cv.f32 data_reg, [%1];\n\t add.f32 %0, %0, data_reg;\n\t }"
                  : "+f"(sink)
                  : "l"(addr)
                  : "memory");
   } else if constexpr (sizeof(T) == sizeof(types::f64)) {
-    asm volatile("{\t\n .reg .f64 data_reg;\n\t ld.global.cg.f64 data_reg, [%1];\n\t add.f64 %0, %0, data_reg;\n\t }"
+    asm volatile("{\t\n .reg .f64 data_reg;\n\t ld.global.cv.f64 data_reg, [%1];\n\t add.f64 %0, %0, data_reg;\n\t }"
                  : "+d"(sink)
                  : "l"(addr)
                  : "memory");
@@ -76,17 +76,17 @@ __device__ __forceinline__ void dramLoadElem(T* addr, T& sink) {
  */
 template <typename T>
 struct L1Loader {
-  __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { l1LoadElem<T>(addr, sink); }
+  __device__ __forceinline__ void operator()(const T* addr, T& sink) const { l1LoadElem<T>(addr, sink); }
 };
 
 template <typename T>
 struct L2Loader {
-  __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { l2LoadElem<T>(addr, sink); }
+  __device__ __forceinline__ void operator()(const T* addr, T& sink) const { l2LoadElem<T>(addr, sink); }
 };
 
 template <typename T>
 struct DramLoader {
-  __device__ __forceinline__ void operator()(T* addr, uint64_t& sink) const { dramLoadElem<T>(addr, sink); }
+  __device__ __forceinline__ void operator()(const T* addr, T& sink) const { dramLoadElem<T>(addr, sink); }
 };
 
 /**
@@ -101,10 +101,10 @@ struct DramLoader {
  * @loadFunc: function to load an element
  */
 template <typename T, typename LoadFunc>
-__device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint64_t totalThreads, T* data,
-                                                             uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                                             LoadFunc loadFunc) {
-  uint64_t localSink = 0;
+__device__ __forceinline__ T accumulateRandomAccesses(uint64_t tid, uint64_t totalThreads, const T* data,
+                                                      uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                                      LoadFunc loadFunc) {
+  T localSink = 0;
   for (uint64_t i = 0; i < numAccesses; i++) {
     uint64_t idx = indices[(tid + i * totalThreads) mod_power_of_2(numElems)];
     loadFunc(&data[idx], localSink);
@@ -132,20 +132,30 @@ __device__ __forceinline__ uint64_t accumulateRandomAccesses(uint64_t tid, uint6
  * @sink[numThreads]: used to prevent compiler optimization - can be ignored
  */
 template <typename T, template <typename> class Loader>
-__global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                           uint64_t* sink) {
+__global__ void randomAccessKernelDispatch(const T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           T* sink) {
   uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   uint64_t totalThreads = gridDim.x * blockDim.x;
+  Loader<T> loader;
+  T localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
+  sink[tid] = localSink;
+}
 
-  /* Shared memory to ensure that exactly one copy of each of these exists. */
-  __shared__ uint64_t sharedStart, sharedEnd;
-  T localSink = 0;
-
-  uint64_t start = clock64();
-  uint64_t localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, l1LoadElem<T>);
-  uint64_t end = clock64();
-
-  results[tid] = end - start;
+/**
+ * randomAccessWarmupDispatch - dispatch warmup kernel to select loader at compile time
+ * 
+ * After moving from per-thread timing to per-block timing with CUDA events,
+ * leaving warmup in the measured kernel pulled those accesses into the event
+ * window and skewed results. Warmup runs separately in its own kernel so that
+ * the measured kernel contains only the work we actually want to time.
+ */
+template <typename T, template <typename> class Loader>
+__global__ void randomAccessWarmupDispatch(const T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
+                                           T* sink) {
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  uint64_t totalThreads = gridDim.x * blockDim.x;
+  Loader<T> loader;
+  T localSink = accumulateRandomAccesses(tid, totalThreads, data, indices, numElems, numAccesses, loader);
   sink[tid] = localSink;
 }
 
@@ -153,22 +163,13 @@ __global__ void randomAccessKernelDispatch(T* data, uint32_t* indices, uint64_t 
  * Type aliases for function pointers to kernels
  */
 template <typename T>
-using randomAccessKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
+using randomAccessKernelFunc = void (*)(const T*, uint32_t*, uint64_t, uint64_t, T*);
 
 /**
  * Type aliases for function pointers to warmup kernels
  */
 template <typename T>
-using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
-
-/**
- * getKernel - select the appropriate kernel based on mode
- * 
- * @mode: cache mode
- * @return: function pointer to the selected kernel
- */
-template <typename T>
-using randomAccessWarmupKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*);
+using randomAccessWarmupKernelFunc = void (*)(const T*, uint32_t*, uint64_t, uint64_t, T*);
 
 /**
  * getKernel - select the appropriate kernel based on mode
@@ -231,7 +232,7 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   assert(numElems == numIndices);
 
   uint32_t* dIndices;
-  uint64_t* dSink;
+  T* dSink;
   T* dData;
 
   uint64_t totalThreads = numBlocks * threadsPerBlock;
@@ -242,7 +243,7 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
   throwOnErr(cudaMalloc(&dIndices, numIndices * sizeof(uint32_t)));
   throwOnErr(cudaMemcpy(dIndices, indices.data(), numIndices * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
-  throwOnErr(cudaMalloc(&dSink, totalThreads * sizeof(uint64_t)));
+  throwOnErr(cudaMalloc(&dSink, totalThreads * sizeof(T)));
 
   auto warmupKernel = getWarmupKernel<T>(mode);
   if (warmupKernel) {
@@ -284,19 +285,7 @@ uint64_t launchRandomAccessKernel(const std::vector<T>& data, const std::vector<
 /* The compiler complains when the concrete versions that we use aren't defined.
  * The implementation isn't required - just a header. So we declare a concrete
  * header for each version of randomAccessKernel that we use. */
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f8>(const std::vector<types::f8>&,
-                                                                                        const std::vector<uint32_t>&,
-                                                                                        uint64_t, uint64_t, uint64_t,
-                                                                                        randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f16>(const std::vector<types::f16>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
-template std::pair<uint64_t, std::vector<uint64_t>> launchRandomAccessKernel<types::f64>(const std::vector<types::f64>&,
-                                                                                         const std::vector<uint32_t>&,
-                                                                                         uint64_t, uint64_t, uint64_t,
-                                                                                         randomAccessKernel::mode);
+template uint64_t launchRandomAccessKernel<types::f32>(const std::vector<types::f32>&, const std::vector<uint32_t>&,
+                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);
+template uint64_t launchRandomAccessKernel<types::f64>(const std::vector<types::f64>&, const std::vector<uint32_t>&,
+                                                       uint64_t, uint64_t, uint64_t, randomAccessKernel::mode);

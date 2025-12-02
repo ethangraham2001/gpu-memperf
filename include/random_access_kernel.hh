@@ -26,10 +26,15 @@ static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
     2 * common::GiB,   /* DRAM. */
 };
 
+/**
+ * sensibleNumBlocks - return a sensible default number of blocks for each mode
+ * 
+ * The number of blocks is chosen as a multiple of 36, since we have 36 SMs.
+ */
 static const constexpr uint64_t sensibleNumBlocks[MODES_SIZE] = {
-    1,  /* L1 Cache. */
-    64, /* L2 Cache - 64 blocks gives optimal bandwidth: fewer blocks (32) underutilizes, while more (128+) causes overhead and lowers performance, making 64 the best balance. */
-    10, /* DRAM. TODO: figure out what this should be. */
+    1,   /* L1 Cache. */
+    108, /* L2 Cache - 72 blocks underutilize the SMs while 144 blocks introduce overhead, making 108 the best balance. */
+    72, /* DRAM: provisional choice; other block counts will be analyzed to optimize it. */
 };
 
 static __used mode parseMode(std::string& modeArg) {
