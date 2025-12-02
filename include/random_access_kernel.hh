@@ -28,7 +28,7 @@ static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
 
 /**
  * sensibleNumBlocks - return a sensible default number of blocks for each mode
- * 
+ *
  * The number of blocks is chosen as a multiple of 36, since we have 36 SMs.
  */
 static const constexpr uint64_t sensibleNumBlocks[MODES_SIZE] = {
