@@ -27,7 +27,7 @@ __global__ void sharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uin
   /* Loop over shared memory with given stride. */
   for (uint32_t i = 0; i < numIters; ++i) {
     uint32_t offset = (tid % 32) * stride;  /* Bank offset */
-    uint32_t address = (i + offset) & mask;  /* Prevent optimization between iterations */
+    uint32_t address = (i + offset) & mask; /* Prevent optimization between iterations */
 
     if constexpr (MODE == sharedToRegister::READ) {
       tmp += sharedMem[address];

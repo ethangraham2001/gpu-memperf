@@ -18,8 +18,8 @@ class SharedToRegisterBenchmark {
 
   SharedToRegisterBenchmark(Encoder& e, const std::vector<std::string>& args = {}) : enc_(e) {
     benchmark::ArgParser parser(args);
-    sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768 });
-    threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256, 512 });
+    sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768});
+    threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256, 512});
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
     elemBytes_ = 8UL;
     numIters_ = parser.getOr("num_iters", 100000UL);
@@ -55,11 +55,10 @@ class SharedToRegisterBenchmark {
             const double bytesTransferred = static_cast<double>(elemBytes_) * transfersPerIter *
                                             static_cast<double>(numIters_) * static_cast<double>(threads);
             double bandwidthGBps = (bytesTransferred / (ms / 1000.0f)) / 1e9;
-  
-            enc_["shared_to_register.csv"] << r+1 << "," << bytes << "," << threads << "," << stride << "," << numIters_ << ","
-                                          << ms << "," << bandwidthGBps << "\n";
-          }
 
+            enc_["shared_to_register.csv"] << r + 1 << "," << bytes << "," << threads << "," << stride << ","
+                                           << numIters_ << "," << ms << "," << bandwidthGBps << "\n";
+          }
         }
       }
     }
