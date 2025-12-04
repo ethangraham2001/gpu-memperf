@@ -88,13 +88,11 @@ __global__ void randomAccessKernelL1(T* data, uint32_t* indices, uint64_t numEle
 
 template <typename T>
 __global__ void randomAccessKernelL2(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                     uint64_t* results, uint64_t* sharedCycles, uint64_t* sink) { /* TODO */
-}
+                                     uint64_t* results, uint64_t* sharedCycles, uint64_t* sink) { /* TODO */ }
 
 template <typename T>
 __global__ void randomAccessKernelDRAM(T* data, uint32_t* indices, uint64_t numElems, uint64_t numAccesses,
-                                       uint64_t* results, uint64_t* sharedCycles, uint64_t* sink) { /* TODO */
-}
+                                       uint64_t* results, uint64_t* sharedCycles, uint64_t* sink) { /* TODO */ }
 
 template <typename T>
 using randomAccessKernelFunc = void (*)(T*, uint32_t*, uint64_t, uint64_t, uint64_t*, uint64_t*, uint64_t*);
