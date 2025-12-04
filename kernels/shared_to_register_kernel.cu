@@ -46,16 +46,16 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
   cudaError_t err;
   const dim3 block(threads);
   const uint32_t warmupIters = 1000;
-  
+
   /* Warmup launch. */
   sharedToRegisterKernel<MODE><<<1, block, sharedBytes>>>(numElems, warmupIters, stride);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
-  
+
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
-    
+
   /* Kernel uses extern shared memory size = sharedBytes. */
   cudaEventRecord(start);
   sharedToRegisterKernel<MODE><<<1, block, sharedBytes>>>(numElems, numIters, stride);
@@ -76,7 +76,6 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
 
   if (elapsedMs)
     *elapsedMs = ms;
-
 }
 
 void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
