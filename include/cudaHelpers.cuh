@@ -23,6 +23,6 @@
  */
 #define mod_power_of_2(x) &(x - 1)
 
-#define isPowerOf2(x) (((x) > 0) && (((x) & ((x)-1)) == 0))
+#define isPowerOf2(x) (((x) > 0) && (((x) & ((x) - 1)) == 0))
 
 #endif /* CUDAHELPERS_CUH */

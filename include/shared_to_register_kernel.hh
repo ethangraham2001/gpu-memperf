@@ -40,9 +40,9 @@ static __used mode parseMode(std::string& modeArg) {
  * @param sharedBytes Size in bytes of the extern shared memory.
  * @param stride Stride in words used to create bank conflict patterns.
  * @param mode The access mode (READ, WRITE, READ_WRITE).
- * @param cycle Returned cycles for measured kernel.
+ * @param elapsedMs Returned elapsed milliseconds for measured kernel.
  */
 void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                  uint32_t stride, sharedToRegister::mode mode, uint64_t* cycle);
+                                  uint32_t stride, sharedToRegister::mode mode, float* elapsedMs);
 
 #endif /* SHARED_TO_REGISTER_KERNEL_HH */
