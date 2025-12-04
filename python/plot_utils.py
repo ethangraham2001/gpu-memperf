@@ -77,6 +77,48 @@ class PlotConfig:
     grid: bool = True
 
 
+def _apply_axes_config(ax, cfg: PlotConfig):
+    """Apply common axis configuration based solely on PlotConfig."""
+    ax.set_xlabel(cfg.xlabel)
+    ax.set_ylabel(cfg.ylabel)
+
+    # Title and optional subtitle
+    if cfg.title:
+        ax.set_title(cfg.title)
+
+    if cfg.subtitle:
+        ax.text(
+            x=0.5,
+            y=0.95,
+            s=cfg.subtitle,
+            ha="center",
+            transform=ax.transAxes,
+            fontsize=10,
+            color="gray",
+        )
+
+    # Tick / scale options
+    if cfg.logx:
+        ax.set_xscale("log")
+    if cfg.logy:
+        ax.set_yscale("log")
+
+    if cfg.xticks:
+        ax.set_xticks(cfg.xticks)
+        ax.set_xticklabels([str(x) for x in cfg.xticks])
+    if cfg.yticks:
+        ax.set_yticks(cfg.yticks)
+    if cfg.xlim:
+        ax.set_xlim(cfg.xlim)
+    if cfg.ylim:
+        ax.set_ylim(cfg.ylim)
+
+    # Grid handling
+    if cfg.grid:
+        ax.grid(True, alpha=0.4, linestyle="--")
+        ax.set_axisbelow(True)
+
+
 def _prepare_outfile(outfile) -> Path:
     plots_dir = Path(__file__).resolve().parent.parent / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
@@ -139,46 +181,10 @@ def line_plot(x, ys, labels, *, outfile, cfg: PlotConfig):
     for y, label in zip(ys, labels):
         ax.plot(x, y, marker="o", label=label)
 
-    ax.set_xlabel(cfg.xlabel)
-    ax.set_ylabel(cfg.ylabel)
-
-    # Optional title
-    if cfg.title:
-        ax.set_title(cfg.title)
-
-    if cfg.subtitle:
-        ax.text(
-            x=0.5,
-            y=0.95,
-            s=cfg.subtitle,
-            ha="center",
-            transform=ax.transAxes,
-            fontsize=10,
-            color="gray",
-        )
-
-    # Tick options
-    if cfg.logx:
-        ax.set_xscale("log")
-    if cfg.logy:
-        ax.set_yscale("log")
-
-    if cfg.xticks:
-        ax.set_xticks(cfg.xticks)
-        ax.set_xticklabels([str(x) for x in cfg.xticks])
-    if cfg.yticks:
-        ax.set_yticks(cfg.yticks)
-    if cfg.xlim:
-        ax.set_xlim(cfg.xlim)
-    if cfg.ylim:
-        ax.set_ylim(cfg.ylim)
-
+    _apply_axes_config(ax, cfg)
+    
     # Only show major ticks
     ax.minorticks_off()
-
-    if cfg.grid:
-        ax.grid(True, alpha=0.4, linestyle="--")
-        ax.set_axisbelow(True)
 
     # Legend
     ax.legend()
@@ -228,29 +234,10 @@ def plot_with_peak(
         if annotate:
             _annotate_peak(ax, x, y, label, shade_color)
 
-    ax.set_xlabel(cfg.xlabel)
-    ax.set_ylabel(cfg.ylabel)
-
-    if cfg.title:
-        ax.set_title(cfg.title)
-    if cfg.logx:
-        ax.set_xscale("log")
-    if cfg.logy:
-        ax.set_yscale("log")
-    if cfg.xticks:
-        ax.set_xticks(cfg.xticks)
-        ax.set_xticklabels([str(xval) for xval in cfg.xticks])
-    if cfg.yticks:
-        ax.set_yticks(cfg.yticks)
-    if cfg.xlim:
-        ax.set_xlim(cfg.xlim)
-    if cfg.ylim:
-        ax.set_ylim(cfg.ylim)
+    _apply_axes_config(ax, cfg)
 
     ax.set_facecolor("#EAEAF2")
     ax.patch.set_alpha(0.4)
-    ax.grid(True, alpha=0.4, linestyle="--")
-    ax.set_axisbelow(True)
 
     ax.minorticks_off()
     ax.legend(title=legend_title, loc=legend_loc)
@@ -317,29 +304,9 @@ def plot_with_error_bars(
         if fill_alpha > 0:
             ax.fill_between(x, lows, highs, color=shade_color, alpha=fill_alpha)
 
-    ax.set_xlabel(cfg.xlabel)
-    ax.set_ylabel(cfg.ylabel)
-
-    if cfg.title:
-        ax.set_title(cfg.title)
-    if cfg.logx:
-        ax.set_xscale("log")
-    if cfg.logy:
-        ax.set_yscale("log")
-    if cfg.xticks:
-        ax.set_xticks(cfg.xticks)
-        ax.set_xticklabels([str(xval) for xval in cfg.xticks])
-    if cfg.yticks:
-        ax.set_yticks(cfg.yticks)
-    if cfg.xlim:
-        ax.set_xlim(cfg.xlim)
-    if cfg.ylim:
-        ax.set_ylim(cfg.ylim)
+    _apply_axes_config(ax, cfg)
 
     ax.minorticks_off()
-    if cfg.grid:
-        ax.grid(True, alpha=0.4, linestyle="--")
-        ax.set_axisbelow(True)
     ax.legend(title=legend_title, loc=legend_loc)
 
     fig.tight_layout()
