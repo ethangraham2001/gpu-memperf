@@ -337,6 +337,9 @@ def plot_with_error_bars(
         ax.set_ylim(cfg.ylim)
 
     ax.minorticks_off()
+    if cfg.grid:
+        ax.grid(True, alpha=0.4, linestyle="--")
+        ax.set_axisbelow(True)
     ax.legend(title=legend_title, loc=legend_loc)
 
     fig.tight_layout()
