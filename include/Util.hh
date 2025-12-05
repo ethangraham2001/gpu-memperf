@@ -50,6 +50,50 @@ uint64_t bytesToNumElems(uint64_t bytes) {
 }
 
 /**
+ * randomVector - generate a vector with random elements given a size
+ *
+ * @size: the number of elements in the resulting vector
+ *
+ * NOTE: if T is a floating point type, the vector's values will be in range
+ * [0.0, 1.0], and if T is an integer type its values will be be within the
+ * full range of representable values of the type's bitwidth, e.g.,
+ * [INT32_MIN, INT32_MAX] for a 32-bit signed integer type.
+ */
+template <typename T>
+std::vector<T> randomVector(size_t size) {
+  static_assert(std::is_arithmetic_v<T>, "T must be an arithmetic type");
+  std::vector<T> result;
+  result.reserve(size);
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+
+  if constexpr (std::is_integral_v<T>) {
+    std::uniform_int_distribution<T> dist(std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
+    for (size_t i = 0; i < size; ++i) {
+      result.push_back(dist(gen));
+    }
+  } else if constexpr (std::is_floating_point_v<T>) {
+    std::uniform_real_distribution<T> dist(0.0, 1.0);
+    for (size_t i = 0; i < size; ++i) {
+      result.push_back(dist(gen));
+    }
+  }
+  return result;
+}
+
+/**
+ * countElements - given some number of bytes, return the number of elements
+ *                 of type T that are represented.
+ */
+template <typename T>
+uint64_t countElements(uint64_t bytes) {
+  if (bytes % sizeof(T))
+    throw std::invalid_argument("bytes can not be perfectly divided");
+  return bytes / sizeof(T);
+}
+
+/**
  * formatBytes - format some number of bytes in human readable form
  *
  * For example, 1.52 billion bytes would be formatted as 1.5GB
