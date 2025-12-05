@@ -36,29 +36,27 @@ def init_style():
     - Legend without frame
     """
 
-    plt.rcParams.update({
-        # Font / text
-        "font.size": 12,
-        "axes.titlesize": 14,
-        "axes.labelsize": 12,
-        "legend.fontsize": 10,
-
-        # Lines & markers
-        "lines.linewidth": 1.5,
-        "lines.markersize": 4,
-
-        # Ticks
-        "xtick.direction": "in",
-        "ytick.direction": "in",
-        "xtick.top": True,
-        "ytick.right": True,
-
-        # Grid
-        "grid.alpha": 0.25,
-
-        # Legend
-        "legend.frameon": False,
-    })
+    plt.rcParams.update(
+        {
+            # Font / text
+            "font.size": 12,
+            "axes.titlesize": 14,
+            "axes.labelsize": 12,
+            "legend.fontsize": 10,
+            # Lines & markers
+            "lines.linewidth": 1.5,
+            "lines.markersize": 4,
+            # Ticks
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "xtick.top": True,
+            "ytick.right": True,
+            # Grid
+            "grid.alpha": 0.25,
+            # Legend
+            "legend.frameon": False,
+        }
+    )
 
 
 @dataclass
@@ -182,7 +180,7 @@ def line_plot(x, ys, labels, *, outfile, cfg: PlotConfig):
         ax.plot(x, y, marker="o", label=label)
 
     _apply_axes_config(ax, cfg)
-    
+
     # Only show major ticks
     ax.minorticks_off()
 
@@ -190,8 +188,6 @@ def line_plot(x, ys, labels, *, outfile, cfg: PlotConfig):
     ax.legend()
 
     fig.tight_layout()
-
-    outfile = _prepare_outfile(outfile)
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
 
@@ -219,7 +215,7 @@ def plot_with_peak(
     for idx, (y, label) in enumerate(zip(ys, labels)):
         color = _resolve_style(palette, idx, label)
         marker = "."
-        line, = ax.plot(
+        (line,) = ax.plot(
             x,
             y,
             marker=marker,
@@ -243,7 +239,6 @@ def plot_with_peak(
     ax.legend(title=legend_title, loc=legend_loc)
 
     fig.tight_layout()
-    outfile = _prepare_outfile(outfile)
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
 
@@ -279,7 +274,9 @@ def plot_with_error_bars(
 
     for idx, (series, label) in enumerate(zip(y_triplets, labels)):
         if any(len(vals) != 3 for vals in series):
-            raise ValueError("Each measurement must contain exactly (low, mid, high) values.")
+            raise ValueError(
+                "Each measurement must contain exactly (low, mid, high) values."
+            )
         lows = [vals[0] for vals in series]
         mids = [vals[1] for vals in series]
         highs = [vals[2] for vals in series]
@@ -310,6 +307,5 @@ def plot_with_error_bars(
     ax.legend(title=legend_title, loc=legend_loc)
 
     fig.tight_layout()
-    outfile = _prepare_outfile(outfile)
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")

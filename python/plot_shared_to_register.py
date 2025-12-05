@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 from pathlib import Path
 
-from plot_utils import PlotConfig, line_plot, plot_with_error_bars
+from plot_utils import PlotConfig, line_plot, plot_with_error_bars, _prepare_outfile
 
 
 def plot_shared_memory_multiple_threads(csv_file: Path, output_file: Path) -> None:
@@ -42,7 +42,7 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
     Expects a CSV with multiple runs of the same benchmark with at least: run, stride, bandwidthGBps.
     We aggregate over runs per stride and show (min, mean, max).
     """
-    
+
     # Load CSV
     df = pd.read_csv(csv_file)
 
@@ -74,10 +74,7 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
     )
 
     y_triplets = [triplets]
-    labels = [
-        f"{threads} threads"
-        for threads in df_sorted["threads"].unique()
-    ]
+    labels = [f"{threads} threads" for threads in df_sorted["threads"].unique()]
 
     plot_with_error_bars(
         xticks,
@@ -95,13 +92,20 @@ def main():
     )
     parser.add_argument("csv_file", type=Path, help="Path to the input CSV file")
     parser.add_argument("--output", type=Path, default=Path("plot_shared_to_register"))
-    parser.add_argument("--mode", type=str, default="error_bars", choices=["multiple_threads", "error_bars"])
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="error_bars",
+        choices=["multiple_threads", "error_bars"],
+    )
 
     args = parser.parse_args()
     if args.mode == "multiple_threads":
-        plot_shared_memory_multiple_threads(args.csv_file, args.output)
+        plot_shared_memory_multiple_threads(
+            args.csv_file, _prepare_outfile(args.output)
+        )
     elif args.mode == "error_bars":
-        plot_shared_memory_error_bars(args.csv_file, args.output)
+        plot_shared_memory_error_bars(args.csv_file, _prepare_outfile(args.output))
 
 
 if __name__ == "__main__":

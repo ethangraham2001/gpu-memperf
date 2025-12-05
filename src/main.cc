@@ -31,7 +31,10 @@ int main(int argc, char** argv) {
     std::cerr << "Available benchmarks: ";
     const auto available = benchmark::BenchmarkRegistry::instance().availableBenchmarks();
     util::displayVector(std::cerr, available);
+    return 1;
   } catch (std::exception& e) {
     std::cerr << "An error occurred: " << e.what() << std::endl;
+    return 1;
   }
+  return 0;
 }
