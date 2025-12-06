@@ -160,11 +160,9 @@ class SharedToRegisterBenchmark(Benchmark):
         fmt_strides = ",".join(str(stride) for stride in self.strides)
         return [
             self.name,
-            # TODO: a bug was identified in the arg parsing logic. This should
-            # be restored when that is fixed! We just omit for now and let the
-            # C++ program choose the default instead.
-            # f"--sizes={fmt_sizes}"
-            f"--threads={fmt_threads}" f"--strides={fmt_strides}",
+            f"--sizes={fmt_sizes}",
+            f"--threads={fmt_threads}",
+            f"--strides={fmt_strides}",
             f"--num_iters={self.num_iters}",
             f"--reps={self.reps}",
         ]

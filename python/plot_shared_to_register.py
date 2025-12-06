@@ -10,8 +10,11 @@ def plot_shared_memory_multiple_threads(csv_file: Path, output_file: Path) -> No
     Plot shared memory to register bandwidth for multiple thread.
     """
 
-    # Load CSV
     df = pd.read_csv(csv_file)
+
+    # If multiple runs measured, take the average across runs for more robustness
+    if "run" in df.columns:
+        df = df.groupby(["threads", "stride"]).agg({"bandwidthGBps": "mean"}).reset_index()
 
     # Extract x and per-thread y series
     xticks = sorted(df["stride"].unique())
@@ -43,7 +46,6 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
     We aggregate over runs per stride and show (min, mean, max).
     """
 
-    # Load CSV
     df = pd.read_csv(csv_file)
 
     # Check that required columns exist
@@ -51,6 +53,14 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"CSV file is missing required columns: {missing}")
+
+    # If multiple experiments were measured, take the benchmark with the maximum threads and bytes
+    if "threads" in df.columns:
+        max_threads = df["threads"].max()
+        df = df[df["threads"] == max_threads]
+    if "bytes" in df.columns:
+        max_bytes = df["bytes"].max()
+        df = df[df["bytes"] == max_bytes]
 
     df_sorted = df.sort_values("stride")
     xticks = sorted(df_sorted["stride"].unique())
@@ -88,7 +98,7 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        usage="python plot_threads.py <csv_file> [--output output_file] [--mode mode]"
+        usage="python plot_shared_to_register.py <csv_file> [--output output_file] [--mode mode]"
     )
     parser.add_argument("csv_file", type=Path, help="Path to the input CSV file")
     parser.add_argument("--output", type=Path, default=Path("plot_shared_to_register"))
