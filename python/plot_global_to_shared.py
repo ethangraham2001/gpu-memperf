@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 import pandas as pd
 
-from plot_utils import PlotConfig, plot_with_peak
+from plot_utils import PlotConfig, plot_with_peak, _prepare_outfile
 
 
 def plot_global_to_shared(csv_file: Path, output_file: Path) -> None:
@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("plot_shared_to_register"))
     args = parser.parse_args()
     args = parser.parse_args()
-    plot_global_to_shared(args.csv_file, args.output)
+    plot_global_to_shared(args.csv_file, _prepare_outfile(args.output))
 
 
 if __name__ == "__main__":
