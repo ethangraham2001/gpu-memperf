@@ -65,8 +65,8 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
     const std::vector<uint32_t> indices = util::permutation<uint32_t>(numElems);
     std::vector<DataType> data(numElems);
 
-    enc_["config"] << "dev_clk_freq" << clockFreq_ << std::endl;
-    enc_["config"] << "access_granularity" << sizeof(DataType) << "B" << std::endl;
+    enc_["config"] << "clk_freq: " << clockFreq_ << "Hz\n";
+    enc_["config"] << "access_granularity: " << sizeof(DataType) << "B\n";
 
     const std::string resultCSV = "result.csv";
     enc_[resultCSV] << "num_warps,cycles,bandwidth\n";
