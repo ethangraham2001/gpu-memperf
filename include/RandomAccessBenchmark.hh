@@ -65,18 +65,18 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
     const std::vector<uint32_t> indices = util::permutation<uint32_t>(numElems);
     std::vector<DataType> data(numElems);
 
-    enc_["dev_clk_freq"] << clockFreq_ << std::endl;
-    enc_["access_granularity"] << sizeof(DataType) << "B" << std::endl;
+    enc_["config"] << "dev_clk_freq" << clockFreq_ << std::endl;
+    enc_["config"] << "access_granularity" << sizeof(DataType) << "B" << std::endl;
 
-    const std::string globalCSV = "global_bw.csv";
-    enc_[globalCSV] << "num_warps,cycles,bandwidth\n";
+    const std::string resultCSV = "result.csv";
+    enc_[resultCSV] << "num_warps,cycles,bandwidth\n";
 
     for (uint64_t numWarps : numWarps_) {
       const auto res = runOne(numWarps);
 
       /* Write global result, per-thread results were removed when we started measuring per-block  */
       const double globalBandwidth = cyclesToBandwidth(res, numWarps);
-      enc_[globalCSV] << numWarps << "," << res << "," << globalBandwidth << "\n";
+      enc_[resultCSV] << numWarps << "," << res << "," << globalBandwidth << "\n";
       enc_.log() << numWarps << " warps, bandwidth: " << util::formatBytes(globalBandwidth) << "/S\n";
     }
   }

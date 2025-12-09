@@ -33,7 +33,9 @@ class SharedToRegisterBenchmark {
   std::string name() const { return benchmarkName; }
 
   void run() {
-    enc_["shared_to_register.csv"] << "run,bytes,threads,stride,iters,timeMs,bandwidthGBps\n";
+    const std::string resultCsv = "result.csv";
+    enc_[resultCsv] << "run,bytes,threads,stride,iters,timeMs,bandwidthGBps\n";
+    enc_.log() << benchmarkName << ": mode=" << mode_ << "\n";
 
     for (uint64_t bytes : sizes_) {
       uint32_t numElems = static_cast<uint32_t>(bytes / sizeof(types::f64));
@@ -55,8 +57,8 @@ class SharedToRegisterBenchmark {
                                             static_cast<double>(numIters_) * static_cast<double>(threads);
             double bandwidthGBps = (bytesTransferred / (ms / 1000.0f)) / 1e9;
 
-            enc_["shared_to_register.csv"] << r + 1 << "," << bytes << "," << threads << "," << stride << ","
-                                           << numIters_ << "," << ms << "," << bandwidthGBps << "\n";
+            enc_[resultCsv] << r + 1 << "," << bytes << "," << threads << "," << stride << "," << numIters_ << "," << ms
+                            << "," << bandwidthGBps << "\n";
           }
         }
       }

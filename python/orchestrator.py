@@ -83,8 +83,8 @@ class GlobalToSharedBenchmark(Benchmark):
         ]
 
     def plot(self, path_to_results: Path, plot_dir: Path):
-        time_csv = path_to_results.joinpath("time.csv")
-        plot_global_to_shared(time_csv, plot_dir.joinpath("global_to_shared_bw.png"))
+        result_csv = path_to_results.joinpath("result.csv")
+        plot_global_to_shared(result_csv, plot_dir.joinpath("global_to_shared_bw.png"))
 
 
 class StridedAccessBenchmark(Benchmark):
@@ -168,12 +168,12 @@ class SharedToRegisterBenchmark(Benchmark):
         ]
 
     def plot(self, path_to_results: Path, plot_dir: Path):
-        results_csv = path_to_results.joinpath("shared_to_register.csv")
+        result_csv = path_to_results.joinpath("result.csv")
         plot_shared_memory_error_bars(
-            results_csv, plot_dir.joinpath("shared_to_regs_error_bars.png")
+            result_csv, plot_dir.joinpath("shared_to_regs_error_bars.png")
         )
         plot_shared_memory_multiple_threads(
-            results_csv, plot_dir.joinpath("shared_to_regs_multiple_threads.png")
+            result_csv, plot_dir.joinpath("shared_to_regs_multiple_threads.png")
         )
 
 
