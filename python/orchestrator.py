@@ -209,7 +209,7 @@ class Orchestrator:
     def __init__(self, out_dir: str, programs: list[Program]):
         self.programs = programs if len(programs) > 0 else list(Program)
         self.out_dir = Path(out_dir)
-        self.out_dir.mkdir()
+        self.out_dir.mkdir(exist_ok=True)
         self._write_bench_info()
 
     def run_all(self):
@@ -218,7 +218,7 @@ class Orchestrator:
             out, failed = bench.run()
             info(out)
             if failed:
-                warn(f"WARNING: program {prog.value} failed")
+                warn(f"program {prog.value} failed")
                 continue
 
             result_path = self._parse_bench_output_dir(out)

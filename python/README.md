@@ -22,7 +22,7 @@ some additional guardrails in place.
 ### Usage
 
 ```
-gpu-memperf benchmark orchestrator
+srun -A dphpc --gpus 5060ti:1 python3 python/orchestrator.py
 
 options:
   -h, --help         show this help message and exit
