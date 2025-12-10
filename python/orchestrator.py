@@ -83,8 +83,49 @@ class GlobalToSharedBenchmark(Benchmark):
         ]
 
     def plot(self, path_to_results: Path, plot_dir: Path):
-        time_csv = path_to_results.joinpath("time.csv")
-        plot_global_to_shared(time_csv, plot_dir.joinpath("global_to_shared_bw.png"))
+        result_csv = path_to_results.joinpath("result.csv")
+        plot_global_to_shared(result_csv, plot_dir.joinpath("global_to_shared_bw.png"))
+
+
+class RandomAccessBenchmark(Benchmark):
+    def __init__(
+        self,
+        num_warps: list[int],
+        num_accesses: int,
+        working_set: int,
+        mode: str,
+        data_type: str,
+    ):
+        self.name = "random_access"
+        self.num_warps = num_warps
+        self.num_accesses = num_accesses
+        self.working_set = working_set
+        self.mode = mode
+        self.data_type = data_type
+
+    @classmethod
+    def default_l1(cls):
+        return cls(
+            mode="l1",
+            num_warps=[2**i for i in range(6)],
+            num_accesses=int(1e7),
+            working_set=8 * 1024,
+            data_type="f32",
+        )
+
+    def get_args(self) -> list[str]:
+        fmt_num_warps = ",".join(str(w) for w in self.num_warps)
+        return [
+            self.name,
+            f"--num_warps={fmt_num_warps}",
+            f"--num_accesses={self.num_accesses}",
+            f"--working_set={self.working_set}",
+            f"--mode={self.mode}",
+            f"--data_type={self.data_type}",
+        ]
+
+    def plot(self, path_to_results: Path, plot_dir: Path):
+        warn("TODO plotting for random access benchmark")
 
 
 class StridedAccessBenchmark(Benchmark):
@@ -168,12 +209,12 @@ class SharedToRegisterBenchmark(Benchmark):
         ]
 
     def plot(self, path_to_results: Path, plot_dir: Path):
-        results_csv = path_to_results.joinpath("shared_to_register.csv")
+        result_csv = path_to_results.joinpath("result.csv")
         plot_shared_memory_error_bars(
-            results_csv, plot_dir.joinpath("shared_to_regs_error_bars.png")
+            result_csv, plot_dir.joinpath("shared_to_regs_error_bars.png")
         )
         plot_shared_memory_multiple_threads(
-            results_csv, plot_dir.joinpath("shared_to_regs_multiple_threads.png")
+            result_csv, plot_dir.joinpath("shared_to_regs_multiple_threads.png")
         )
 
 
@@ -201,6 +242,7 @@ def get_git_info():
 
 class Program(Enum):
     GlobalToShared = "global_to_shared"
+    RandomAccessL1 = "random_l1"
     StridedAccessL1 = "strided_l1"
     SharedToRegisters = "shared_to_registers"
 
@@ -234,6 +276,8 @@ class Orchestrator:
         match prog:
             case Program.GlobalToShared:
                 return GlobalToSharedBenchmark.default()
+            case Program.RandomAccessL1:
+                return RandomAccessBenchmark.default_l1()
             case Program.StridedAccessL1:
                 return StridedAccessBenchmark.default_l1()
             case Program.SharedToRegisters:

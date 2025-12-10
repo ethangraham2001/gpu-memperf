@@ -36,10 +36,10 @@ class GlobalToSharedBenchmark {
         globalToShared::ASYNC_2X_BUFFERED,
     };
 
-    const std::string timeCsv = "time.csv";
+    const std::string resultCSV = "result.csv";
     const std::string bandwidth = "bandwidth";
 
-    enc_[timeCsv] << "mode,tile_size,buf_size,fops,ms\n";
+    enc_[resultCSV] << "mode,tile_size,buf_size,fops,ms\n";
     for (const auto mode : modes) {
       const std::string modeStr = globalToShared::modeStr(mode);
       enc_.log() << "Benching mode=" << modeStr << "\n";
@@ -69,8 +69,8 @@ class GlobalToSharedBenchmark {
 
           enc_[bandwidth] << "\t\t\tbandwidth: " << util::formatBytes(bw) << "/s\n";
           enc_[bandwidth] << "\t\t\tms       : " << millis << "\n\n";
-          enc_[timeCsv] << modeStr << "," << tileSize << "," << bufferSize << "," << flops << "," << millis
-                        << std::endl;
+          enc_[resultCSV] << modeStr << "," << tileSize << "," << bufferSize << "," << flops << "," << millis
+                          << std::endl;
         }
       }
     }

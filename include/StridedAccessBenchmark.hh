@@ -73,7 +73,8 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
 
     std::vector<DataType> hostData = util::randomVector<DataType>(numElems);
 
-    enc_["bandwidth.csv"] << "blocks,threads_per_block,working_set,iters,stride,bandwidth\n";
+    const std::string resultCSV = "result.csv";
+    enc_[resultCSV] << "blocks,threads_per_block,working_set,iters,stride,bandwidth\n";
 
     for (uint64_t stride_ : strides_) {
 
@@ -85,9 +86,8 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
 
       double bandwidth = (double)bytesRead / ((double)milliseconds / 1000.0);
 
-      enc_["bandwidth.csv"] << numBlocks_ << "," << threadsPerBlock_ << ","
-                            << util::formatBytes((double)workingSetSize_) << "," << iters_ << "," << stride_ << ","
-                            << bandwidth << "\n";
+      enc_[resultCSV] << numBlocks_ << "," << threadsPerBlock_ << "," << util::formatBytes((double)workingSetSize_)
+                      << "," << iters_ << "," << stride_ << "," << bandwidth << "\n";
 
       enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(bandwidth) << "\n";
     }
