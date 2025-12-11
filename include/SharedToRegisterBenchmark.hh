@@ -1,12 +1,12 @@
 #ifndef SHARED_TO_REGISTER_BENCHMARK_HH
 #define SHARED_TO_REGISTER_BENCHMARK_HH
 
-#include <numeric>
 #include <string>
 #include <vector>
 
 #include <ArgParser.hh>
 #include <Benchmark.hh>
+#include <Types.hh>
 #include <Util.hh>
 #include <device_attributes.hh>
 
@@ -21,7 +21,6 @@ class SharedToRegisterBenchmark {
     sizes_ = parser.getOr("sizes", std::vector<uint64_t>{4096, 8192, 16384, 32768});
     threads_ = parser.getOr("threads", std::vector<uint64_t>{32, 64, 128, 256, 512});
     strides_ = parser.getOr("strides", std::vector<uint64_t>{1, 2, 4, 8, 16, 32});
-    elemBytes_ = 8UL;
     numIters_ = parser.getOr("num_iters", 100000UL);
     reps_ = parser.getOr("reps", 3UL);
 
@@ -34,10 +33,12 @@ class SharedToRegisterBenchmark {
   std::string name() const { return benchmarkName; }
 
   void run() {
-    enc_["shared_to_register.csv"] << "run,bytes,threads,stride,iters,timeMs,bandwidthGBps\n";
+    const std::string resultCsv = "result.csv";
+    enc_[resultCsv] << "run,bytes,threads,stride,iters,timeMs,bandwidthGBps\n";
+    enc_.log() << benchmarkName << ": mode=" << mode_ << "\n";
 
     for (uint64_t bytes : sizes_) {
-      uint32_t numElems = static_cast<uint32_t>(bytes / elemBytes_);
+      uint32_t numElems = static_cast<uint32_t>(bytes / sizeof(types::f64));
 
       for (uint64_t threads : threads_) {
         if (threads == 0)
@@ -52,12 +53,12 @@ class SharedToRegisterBenchmark {
                                          bytes, static_cast<uint32_t>(stride), mode_, &ms);
 
             const double transfersPerIter = (mode_ == sharedToRegister::READ_WRITE) ? 2.0 : 1.0;
-            const double bytesTransferred = static_cast<double>(elemBytes_) * transfersPerIter *
+            const double bytesTransferred = static_cast<double>(sizeof(types::f64)) * transfersPerIter *
                                             static_cast<double>(numIters_) * static_cast<double>(threads);
             double bandwidthGBps = (bytesTransferred / (ms / 1000.0f)) / 1e9;
 
-            enc_["shared_to_register.csv"] << r + 1 << "," << bytes << "," << threads << "," << stride << ","
-                                           << numIters_ << "," << ms << "," << bandwidthGBps << "\n";
+            enc_[resultCsv] << r + 1 << "," << bytes << "," << threads << "," << stride << "," << numIters_ << "," << ms
+                            << "," << bandwidthGBps << "\n";
           }
         }
       }
@@ -69,7 +70,6 @@ class SharedToRegisterBenchmark {
   std::vector<uint64_t> sizes_;
   std::vector<uint64_t> threads_;
   std::vector<uint64_t> strides_;
-  uint64_t elemBytes_;
   uint64_t numIters_;
   uint64_t reps_;
   sharedToRegister::mode mode_;
