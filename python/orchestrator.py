@@ -53,7 +53,7 @@ class Benchmark(ABC):
         pass
 
     def run(self) -> tuple[str, bool]:
-        subprocess_cmd = ["srun", "-A", "dphpc", "--gpus", "5060ti:1", gpu_memperf_bin] + self.get_args()
+        subprocess_cmd = [gpu_memperf_bin] + self.get_args()
         return run_command_manual_check(subprocess_cmd)
 
 
@@ -155,7 +155,7 @@ class StridedAccessBenchmark(Benchmark):
             mode="L1",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
-            working_sets = [100 * 1024],
+            working_sets = [1024 * x for x in (100,)],
             threads_per_block=1024,
             blocks=0,
             reps=3,
@@ -167,7 +167,7 @@ class StridedAccessBenchmark(Benchmark):
             mode="L2",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
-            working_sets = [x * 1024 * 1024 for x in (25,)],
+            working_sets = [(1024**2) * x for x in (25,)],
             threads_per_block=1024,
             blocks=0,
             reps=3,
@@ -179,7 +179,7 @@ class StridedAccessBenchmark(Benchmark):
             mode="DRAM",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
-            working_sets = [1024**3 << i for i in range(0, 3)],
+            working_sets = [(1024**3) * x for x in (4,)],
             threads_per_block=1024,
             blocks=0,
             reps=3,

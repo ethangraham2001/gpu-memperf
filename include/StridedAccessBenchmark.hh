@@ -84,11 +84,11 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
 
       for (uint64_t stride_ : strides_) {
         const auto kernelLauncher = getLauncher(cachePolicy_);
-        
+
         double minBandwidth = std::numeric_limits<double>::max();
         double maxBandwidth = 0.0;
         double totalBandwidth = 0.0;
-        
+
         for (int rep = 0; rep < reps_; ++rep) {
           float milliseconds = kernelLauncher(hostData, stride_, iters_, threadsPerBlock_, numBlocks_);
 
@@ -96,18 +96,20 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
               static_cast<uint64_t>(numBlocks_) * static_cast<uint64_t>(threadsPerBlock_) * iters_ * sizeof(DataType);
 
           double bandwidth = (double)bytesRead / ((double)milliseconds / 1000.0);
-          
+
           minBandwidth = std::min(minBandwidth, bandwidth);
           maxBandwidth = std::max(maxBandwidth, bandwidth);
           totalBandwidth += bandwidth;
         }
-        
+
         double meanBandwidth = totalBandwidth / reps_;
 
         enc_[resultCSV] << numBlocks_ << "," << threadsPerBlock_ << "," << util::formatBytes((double)workingSetSize_)
-                        << "," << iters_ << "," << stride_ << "," << meanBandwidth << "," << minBandwidth << "," << maxBandwidth << "\n";
+                        << "," << iters_ << "," << stride_ << "," << meanBandwidth << "," << minBandwidth << ","
+                        << maxBandwidth << "\n";
 
-        enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(meanBandwidth) << "\n";
+        enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(meanBandwidth)
+                   << "\n";
       }
     }
   }
