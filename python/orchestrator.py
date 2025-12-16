@@ -3,6 +3,7 @@ orchestrator.py - do-it-all benchmark orchestration for gpu-memperf
 """
 
 from abc import abstractmethod, ABC
+import pandas as pd
 from pathlib import Path
 from enum import Enum
 import subprocess
@@ -15,6 +16,7 @@ from plot_shared_to_register import (
     plot_shared_memory_error_bars,
     plot_shared_memory_multiple_threads,
 )
+from plot_random_access import plot_all
 
 # Path to the gpu-memperf compiled binary.
 gpu_memperf_bin = "./gpu-memperf"
@@ -95,6 +97,8 @@ class RandomAccessBenchmark(Benchmark):
         working_set: int,
         mode: str,
         data_type: str,
+        num_blocks: list[int] | int | None = None,
+        reps: int = 1,
     ):
         self.name = "random_access"
         self.num_warps = num_warps
@@ -102,6 +106,14 @@ class RandomAccessBenchmark(Benchmark):
         self.working_set = working_set
         self.mode = mode
         self.data_type = data_type
+
+        if num_blocks is None:
+            self.num_blocks = [1]
+        elif isinstance(num_blocks, int):
+            self.num_blocks = [num_blocks]
+        else:
+            self.num_blocks = num_blocks
+        self.reps = reps
 
     @classmethod
     def default_l1(cls):
@@ -111,21 +123,103 @@ class RandomAccessBenchmark(Benchmark):
             num_accesses=int(1e7),
             working_set=8 * 1024,
             data_type="f32",
+            num_blocks=[1, 36, 72, 108],
+            reps=3,
         )
 
-    def get_args(self) -> list[str]:
+    @classmethod
+    def default_l2(cls):
+        return cls(
+            mode="l2",
+            num_warps=[2**i for i in range(6)],
+            num_accesses=int(1e7),
+            working_set=8 * 1024 * 1024,
+            data_type="f32",
+            num_blocks=[1, 36, 72, 108],
+            reps=3,
+        )
+
+    @classmethod
+    def default_dram(cls):
+        return cls(
+            mode="dram",
+            num_warps=[2**i for i in range(6)],
+            num_accesses=int(1e7),
+            working_set=64 * 1024 * 1024,
+            data_type="f32",
+            num_blocks=[1, 36, 72, 108],
+            reps=3,
+        )
+
+    def get_args(self, blocks: int, reps_override: int = 1) -> list[str]:
         fmt_num_warps = ",".join(str(w) for w in self.num_warps)
-        return [
+        args = [
             self.name,
             f"--num_warps={fmt_num_warps}",
             f"--num_accesses={self.num_accesses}",
             f"--working_set={self.working_set}",
             f"--mode={self.mode}",
             f"--data_type={self.data_type}",
+            f"--reps={reps_override}",
+            f"--num_blocks={blocks}",
         ]
+        return args
+
+    def run(self) -> tuple[str, bool]:
+        """
+        Run the benchmark for random access.
+        For each mode (l1, l2, dram), we run 3 measurements per block count (1, 36, 72, 108)
+        to gather sufficient data for error bars plotting.
+        
+        :param self: Description
+        :return: Description
+        :rtype: tuple[str, bool]
+        """
+        merged_df = pd.DataFrame()
+        last_out = ""
+        last_failed = False
+        
+        final_result_path = None
+
+        for idx, blocks in enumerate(self.num_blocks):
+            for r in range(self.reps):
+                print(f"Measuring random access for {self.mode} - {blocks} blocks - {r + 1}/{self.reps}", flush=True)
+                
+                # Pass reps=1 to binary so it runs once
+                cmd = [gpu_memperf_bin] + self.get_args(blocks, reps_override=1)
+                out, failed = run_command_manual_check(cmd)
+                last_out = out
+                last_failed = failed
+                
+                if failed:
+                    return out, failed
+                
+                # Parse output dir from this run
+                res_path = None
+                for line in out.split("\n"):
+                    if "wrote results to" in line:
+                        match = re.search(r'"(.*?)"', line)
+                        if match:
+                            res_path = Path(match.group(1))
+                            break
+                
+                if res_path and (res_path / "result.csv").exists():
+                    df = pd.read_csv(res_path / "result.csv")
+                    df["num_blocks"] = blocks
+                    merged_df = pd.concat([merged_df, df], ignore_index=True)
+                    final_result_path = res_path
+                else:
+                    warn(f"Could not find results for block count {blocks}")
+
+            print("")
+
+        if final_result_path:
+            merged_df.to_csv(final_result_path / "result.csv", index=False)
+            
+        return last_out, last_failed
 
     def plot(self, path_to_results: Path, plot_dir: Path):
-        warn("TODO plotting for random access benchmark")
+        plot_all(path_to_results.parent, plot_dir)
 
 
 class StridedAccessBenchmark(Benchmark):
@@ -242,7 +336,9 @@ def get_git_info():
 
 class Program(Enum):
     GlobalToShared = "global_to_shared"
-    RandomAccessL1 = "random_l1"
+    RandomAccessL1 = "random_access_l1"
+    RandomAccessL2 = "random_access_l2"
+    RandomAccessDRAM = "random_access_dram"
     StridedAccessL1 = "strided_l1"
     SharedToRegisters = "shared_to_registers"
 
@@ -268,6 +364,9 @@ class Orchestrator:
                 raise Exception("could not find an output file")
 
             new_result_path = self.out_dir.joinpath(prog.value)
+            # Remove destination if it exists to allow overwriting
+            if new_result_path.exists():
+                shutil.rmtree(new_result_path)
             shutil.move(result_path, new_result_path)
             bench.plot(new_result_path, self.out_dir)
 
@@ -278,6 +377,10 @@ class Orchestrator:
                 return GlobalToSharedBenchmark.default()
             case Program.RandomAccessL1:
                 return RandomAccessBenchmark.default_l1()
+            case Program.RandomAccessL2:
+                return RandomAccessBenchmark.default_l2()
+            case Program.RandomAccessDRAM:
+                return RandomAccessBenchmark.default_dram()
             case Program.StridedAccessL1:
                 return StridedAccessBenchmark.default_l1()
             case Program.SharedToRegisters:

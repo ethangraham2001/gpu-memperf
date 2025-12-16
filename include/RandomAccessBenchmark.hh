@@ -51,8 +51,8 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
     mode_ = randomAccessKernel::parseMode(modeStr);
     /* Pick a conservative value based on the cache level being benchmarked. */
     cacheSize_ = randomAccessKernel::defaultCacheSize(mode_);
-    /* XXX: assumes that we don't want to parameterize the number of blocks. */
-    numBlocks_ = randomAccessKernel::defaultNumBlocks(mode_);
+    numBlocks_ = parser.getOr("num_blocks", randomAccessKernel::defaultNumBlocks(mode_));
+    reps_ = parser.getOr("reps", (uint64_t)1);
 
     if (!configIsValid())
       throw std::invalid_argument("RandomAccessBenchmark config is invalid");
@@ -72,12 +72,14 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
     enc_[resultCSV] << "num_warps,cycles,bandwidth\n";
 
     for (uint64_t numWarps : numWarps_) {
-      const auto res = runOne(numWarps);
+      for (uint64_t i = 0; i < reps_; i++) {
+        const auto res = runOne(numWarps);
 
-      /* Write global result, per-thread results were removed when we started measuring per-block  */
-      const double globalBandwidth = cyclesToBandwidth(res, numWarps);
-      enc_[resultCSV] << numWarps << "," << res << "," << globalBandwidth << "\n";
-      enc_.log() << numWarps << " warps, bandwidth: " << util::formatBytes(globalBandwidth) << "/S\n";
+        /* Write global result, per-thread results were removed when we started measuring per-block  */
+        const double globalBandwidth = cyclesToBandwidth(res, numWarps);
+        enc_[resultCSV] << numWarps << "," << res << "," << globalBandwidth << "\n";
+        enc_.log() << numWarps << " warps, bandwidth: " << util::formatBytes(globalBandwidth) << "/S\n";
+      }
     }
   }
 
@@ -89,6 +91,7 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
   uint64_t cacheSize_;
   uint32_t clockFreq_;
   uint64_t numBlocks_;
+  uint64_t reps_;
   Encoder& enc_;
 
   uint64_t runOne(uint64_t numWarps) {

@@ -309,3 +309,60 @@ def plot_with_error_bars(
     fig.tight_layout()
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
+
+
+def plot_with_error_bars_raw(
+    x,
+    y_raw,
+    labels,
+    *,
+    outfile,
+    cfg: PlotConfig,
+    palette: Optional[Union[Dict, Sequence]] = None,
+    markers: Optional[Union[Dict, Sequence]] = None,
+    linewidth: float = 2.0,
+    capsize: float = 4.0,
+    fill_alpha: float = 0.12,
+    legend_title: Optional[str] = None,
+    legend_loc: str = "best",
+):
+    """Plot series from raw measurements (expecting ~3-5 per point).
+    Calculates min, mean, max automatically.
+
+    Args:
+        x: shared x values.
+        y_raw: iterable of series. Each series is a list of lists (one list of measurements per x point).
+               e.g. [ [run1, run2, run3], [run1...], ... ] for each x.
+        labels: legend labels.
+        outfile: output path.
+        cfg: PlotConfig.
+    """
+    triplets_all = []
+    for series in y_raw:
+        # series corresponds to one line
+        # it contains a list of measurements for each x
+        series_triplets = []
+        for measurements in series:
+            if not measurements:
+                series_triplets.append((0, 0, 0))
+                continue
+            low = min(measurements)
+            high = max(measurements)
+            mid = sum(measurements) / len(measurements)
+            series_triplets.append((low, mid, high))
+        triplets_all.append(series_triplets)
+
+    plot_with_error_bars(
+        x,
+        triplets_all,
+        labels,
+        outfile=outfile,
+        cfg=cfg,
+        palette=palette,
+        markers=markers,
+        linewidth=linewidth,
+        capsize=capsize,
+        fill_alpha=fill_alpha,
+        legend_title=legend_title,
+        legend_loc=legend_loc,
+    )
