@@ -43,22 +43,27 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
     mode_ = parser.getOr("mode", std::string("L1"));
     strides_ = parser.getOr<std::vector<uint64_t>>("stride", {1, 2, 4, 8, 16, 32});
     iters_ = parser.getOr("iters", 1000000UL);
+    reps_ = static_cast<int>(parser.getOr("reps", 1UL));
     threadsPerBlock_ = static_cast<int>(parser.getOr("threads_per_block", common::maxThreadsPerBlock));
     numBlocks_ = static_cast<int>(parser.getOr("blocks", 0UL)); /* 0 => auto (SM count). */
 
     /* TODO: Refactor with RandomAccessBenchmark */
+    uint64_t defaultWorkingSet = 0;
     if (mode_ == "L1") {
-      workingSetSize_ = 100 * common::KiB; /* L1. */
+      defaultWorkingSet = 100 * common::KiB; /* L1. */
       cachePolicy_ = cacheload::CachePolicy::L1;
     } else if (mode_ == "L2") {
-      workingSetSize_ = 25 * common::MiB; /* L2. */
+      defaultWorkingSet = 25 * common::MiB; /* L2. */
       cachePolicy_ = cacheload::CachePolicy::L2;
     } else if (mode_ == "DRAM") {
-      workingSetSize_ = 2 * common::GiB; /* DRAM. */
+      defaultWorkingSet = 2 * common::GiB; /* DRAM. */
       cachePolicy_ = cacheload::CachePolicy::DRAM;
     } else {
       throw std::runtime_error("Invalid mode, please select one of {L1, L2, DRAM}");
     }
+
+    /* Allow overriding with a list of working set sizes from the command line (bytes). */
+    workingSets_ = parser.getOr<std::vector<uint64_t>>("working_set", {defaultWorkingSet});
   }
 
   std::string name() const { return std::string("strided_access") + typeid(DataType).name(); }
@@ -67,37 +72,54 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
     if (numBlocks_ <= 0)
       numBlocks_ = getSmCount(0);
 
-    const uint64_t numElems = util::bytesToNumElems<DataType>(workingSetSize_);
-    if (!numElems)
-      throw std::runtime_error("working_set too small");
-
-    std::vector<DataType> hostData = util::randomVector<DataType>(numElems);
-
     const std::string resultCSV = "result.csv";
-    enc_[resultCSV] << "blocks,threads_per_block,working_set,iters,stride,bandwidth\n";
+    enc_[resultCSV] << "blocks,threads_per_block,working_set,iters,stride,bandwidth,min_bandwidth,max_bandwidth\n";
 
-    for (uint64_t stride_ : strides_) {
+    for (uint64_t workingSetSize_ : workingSets_) {
+      const uint64_t numElems = util::bytesToNumElems<DataType>(workingSetSize_);
+      if (!numElems)
+        throw std::runtime_error("working_set too small");
 
-      const auto kernelLauncher = getLauncher(cachePolicy_);
-      float milliseconds = kernelLauncher(hostData, stride_, iters_, threadsPerBlock_, numBlocks_);
+      std::vector<DataType> hostData = util::randomVector<DataType>(numElems);
 
-      const uint64_t bytesRead =
-          static_cast<uint64_t>(numBlocks_) * static_cast<uint64_t>(threadsPerBlock_) * iters_ * sizeof(DataType);
+      for (uint64_t stride_ : strides_) {
+        const auto kernelLauncher = getLauncher(cachePolicy_);
 
-      double bandwidth = (double)bytesRead / ((double)milliseconds / 1000.0);
+        double minBandwidth = std::numeric_limits<double>::max();
+        double maxBandwidth = 0.0;
+        double totalBandwidth = 0.0;
 
-      enc_[resultCSV] << numBlocks_ << "," << threadsPerBlock_ << "," << util::formatBytes((double)workingSetSize_)
-                      << "," << iters_ << "," << stride_ << "," << bandwidth << "\n";
+        for (int rep = 0; rep < reps_; ++rep) {
+          float milliseconds = kernelLauncher(hostData, stride_, iters_, threadsPerBlock_, numBlocks_);
 
-      enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(bandwidth) << "\n";
+          const uint64_t bytesRead =
+              static_cast<uint64_t>(numBlocks_) * static_cast<uint64_t>(threadsPerBlock_) * iters_ * sizeof(DataType);
+
+          double bandwidth = (double)bytesRead / ((double)milliseconds / 1000.0);
+
+          minBandwidth = std::min(minBandwidth, bandwidth);
+          maxBandwidth = std::max(maxBandwidth, bandwidth);
+          totalBandwidth += bandwidth;
+        }
+
+        double meanBandwidth = totalBandwidth / reps_;
+
+        enc_[resultCSV] << numBlocks_ << "," << threadsPerBlock_ << "," << util::formatBytes((double)workingSetSize_)
+                        << "," << iters_ << "," << stride_ << "," << meanBandwidth << "," << minBandwidth << ","
+                        << maxBandwidth << "\n";
+
+        enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(meanBandwidth)
+                   << "\n";
+      }
     }
   }
 
  private:
   Encoder& enc_;
-  uint64_t workingSetSize_;
+  std::vector<uint64_t> workingSets_;
   std::vector<uint64_t> strides_;
   uint64_t iters_;
+  int reps_;
   int threadsPerBlock_;
   int numBlocks_;
   std::string mode_;
