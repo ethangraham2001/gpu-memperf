@@ -197,6 +197,7 @@ class StridedAccessBenchmark(Benchmark):
             f"--threads_per_block={self.threads_per_block}",
             f"--blocks={self.blocks}",
             f"--reps={self.reps}",
+            f"--data_type=f64",
         ]
 
     def plot(self, path_to_results: Path, plot_dir: Path):
