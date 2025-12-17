@@ -153,7 +153,7 @@ class StridedAccessBenchmark : public StridedAccessBenchmarkBase {
 
   StridedAccessBenchmark(Encoder& e, const std::vector<std::string>& args) {
     benchmark::ArgParser parser(args);
-    dataType_ = parser.getOr("data_type", std::string("f32"));
+    dataType_ = parser.getOr("data_type", std::string("f64"));
 
     if (dataType_ == "f32")
       bench_ = std::make_unique<StridedAccessBenchmarkGeneric<types::f32>>(e, args);
