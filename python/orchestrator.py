@@ -17,6 +17,7 @@ from plot_shared_to_register import (
     plot_shared_memory_multiple_threads,
 )
 from plot_random_access import plot_all
+from plot_strided_access import plot_strided_access_bandwidth
 
 # Path to the gpu-memperf compiled binary.
 gpu_memperf_bin = "./gpu-memperf"
@@ -227,16 +228,20 @@ class StridedAccessBenchmark(Benchmark):
         self,
         mode: str,
         stride: list[int],
+        working_sets : list[int],
         iters: int,
         threads_per_block: int,
         blocks: int,
+        reps: int,
     ):
         self.name = "strided_access"
         self.mode = mode
         self.stride = stride
+        self.working_sets = working_sets
         self.iters = iters
         self.threads_per_block = threads_per_block
         self.blocks = blocks
+        self.reps = reps
 
     @classmethod
     def default_l1(cls):
@@ -244,23 +249,54 @@ class StridedAccessBenchmark(Benchmark):
             mode="L1",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
+            working_sets = [1024 * x for x in (100,)],
             threads_per_block=1024,
             blocks=0,
+            reps=3,
+        )
+
+    @classmethod
+    def default_l2(cls):
+        return cls(
+            mode="L2",
+            stride=[2**i for i in range(6)],
+            iters=int(1e6),
+            working_sets = [(1024**2) * x for x in (25,)],
+            threads_per_block=1024,
+            blocks=0,
+            reps=3,
+        )
+
+    @classmethod
+    def default_dram(cls):
+        return cls(
+            mode="DRAM",
+            stride=[2**i for i in range(6)],
+            iters=int(1e6),
+            working_sets = [(1024**3) * x for x in (4,)],
+            threads_per_block=1024,
+            blocks=0,
+            reps=3,
         )
 
     def get_args(self) -> list[str]:
         fmt_stride = ",".join(str(s) for s in self.stride)
+        fmt_working_sets = ",".join(str(ws) for ws in self.working_sets)
         return [
             self.name,
             f"--mode={self.mode}",
             f"--stride={fmt_stride}",
             f"--iters={self.iters}",
+            f"--working_set={fmt_working_sets}",
             f"--threads_per_block={self.threads_per_block}",
             f"--blocks={self.blocks}",
+            f"--reps={self.reps}",
         ]
 
     def plot(self, path_to_results: Path, plot_dir: Path):
-        warn("TODO plotting for strided benchmark")
+        result_csv = path_to_results.joinpath("result.csv")
+        outfile = plot_dir.joinpath(f"strided_access_{self.mode.lower()}_bandwidth.png")
+        plot_strided_access_bandwidth(result_csv, outfile, mode=self.mode)
 
 
 class SharedToRegisterBenchmark(Benchmark):
@@ -340,6 +376,8 @@ class Program(Enum):
     RandomAccessL2 = "random_access_l2"
     RandomAccessDRAM = "random_access_dram"
     StridedAccessL1 = "strided_l1"
+    StridedAccessL2 = "strided_l2"
+    StridedAccessDRAM = "strided_dram"
     SharedToRegisters = "shared_to_registers"
 
 
@@ -383,6 +421,10 @@ class Orchestrator:
                 return RandomAccessBenchmark.default_dram()
             case Program.StridedAccessL1:
                 return StridedAccessBenchmark.default_l1()
+            case Program.StridedAccessL2:
+                return StridedAccessBenchmark.default_l2()
+            case Program.StridedAccessDRAM:
+                return StridedAccessBenchmark.default_dram()
             case Program.SharedToRegisters:
                 return SharedToRegisterBenchmark.default()
 
