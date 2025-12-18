@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
+import numpy as np
 
 
 def init_style():
@@ -366,3 +367,114 @@ def plot_with_error_bars_raw(
         legend_title=legend_title,
         legend_loc=legend_loc,
     )
+
+
+def plot_with_box_plots(
+    x,
+    y_raw,
+    labels,
+    *,
+    outfile,
+    cfg: PlotConfig,
+    palette: Optional[Union[Dict, Sequence]] = None,
+    legend_title: Optional[str] = None,
+    legend_loc: str = "best",
+    box_width: float = 0.6,
+):
+    """Create a grouped box plot with scatter overlay.
+
+    Args:
+        x: shared x values (ticks).
+        y_raw: iterable of series. Each series is a list of lists (measurements per x point).
+        labels: legend labels for each series.
+        outfile: output path.
+        cfg: PlotConfig.
+    """
+    init_style()
+    fig, ax = plt.subplots(figsize=cfg.figsize)
+
+    n_series = len(y_raw)
+    n_ticks = len(x)
+    
+    indices = range(n_ticks)
+    total_group_width = 0.8
+    single_box_width = total_group_width / n_series
+    offsets = [
+        (i - (n_series - 1) / 2) * single_box_width for i in range(n_series)
+    ]
+
+    for i, (series, label) in enumerate(zip(y_raw, labels)):
+        positions = [idx + offsets[i] for idx in indices]
+        
+        valid_data = []
+        valid_pos = []
+        for d, p in zip(series, positions):
+            if d:
+                valid_data.append(d)
+                valid_pos.append(p)
+        
+        if not valid_data:
+            continue
+
+        color = _resolve_style(palette, i, label)
+        if color is None:
+            # Robustly get next color from cycle
+            color = ax._get_lines.get_next_color()
+
+        # Plot boxplot
+        bp = ax.boxplot(
+            valid_data,
+            positions=valid_pos,
+            widths=single_box_width * 0.9,
+            patch_artist=True,
+            showfliers=False, # We will plot points manually
+            medianprops=dict(color="black", linewidth=1.2),
+            capprops=dict(color="black", linewidth=1),
+            whiskerprops=dict(color="black", linewidth=1),
+        )
+        
+        # Style boxes and legend
+        for j, box in enumerate(bp['boxes']):
+            box.set_facecolor(color)
+            box.set_alpha(0.6)
+            box.set_edgecolor("black")
+            box.set_linewidth(1)
+            if j == 0:
+                box.set_label(label)
+
+        # Scatter overlay
+        for data_points, pos in zip(valid_data, valid_pos):
+            # Jitter
+            jitter = np.random.uniform(-single_box_width * 0.2, single_box_width * 0.2, size=len(data_points))
+            ax.scatter(
+                [pos] * len(data_points) + jitter, 
+                data_points, 
+                color=color, 
+                edgecolor='black', 
+                linewidth=0.5,
+                s=15, 
+                alpha=0.9,
+                zorder=3
+            )
+
+    # Temporarily clear xticks from cfg to prevent _apply_axes_config from setting them wrong
+    original_xticks = cfg.xticks
+    cfg.xticks = None
+    
+    _apply_axes_config(ax, cfg)
+    
+    cfg.xticks = original_xticks
+    
+    # Must be done BEFORE setting ticks, otherwise labels might be reset
+    ax.set_xscale("linear") 
+    
+    # Override x ticks 
+    ax.set_xticks(indices)
+    ax.set_xticklabels([str(val) for val in x])
+
+    ax.minorticks_off()
+    ax.legend(title=legend_title, loc=legend_loc)
+
+    fig.tight_layout()
+    fig.savefig(outfile, dpi=300)
+    print(f"Saved plot: {outfile}")
