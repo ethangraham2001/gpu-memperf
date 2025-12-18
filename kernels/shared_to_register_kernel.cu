@@ -92,7 +92,8 @@ void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t
       launchKernel<sharedToRegister::WRITE>(numElems, numIters, threads, numBlocks, sharedBytes, stride, elapsedMs);
       break;
     case sharedToRegister::READ_WRITE:
-      launchKernel<sharedToRegister::READ_WRITE>(numElems, numIters, threads, numBlocks, sharedBytes, stride, elapsedMs);
+      launchKernel<sharedToRegister::READ_WRITE>(numElems, numIters, threads, numBlocks, sharedBytes, stride,
+                                                 elapsedMs);
       break;
     default:
       throw std::runtime_error("Invalid mode");

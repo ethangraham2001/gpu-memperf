@@ -53,11 +53,13 @@ class SharedToRegisterBenchmark {
           for (uint64_t stride : strides_) {
             float ms = 0.0f;
             launchSharedToRegisterKernel(numElems, static_cast<uint32_t>(numIters_), static_cast<uint32_t>(threads),
-                                         static_cast<uint32_t>(numBlocks_), bytes, static_cast<uint32_t>(stride), mode_, &ms);
+                                         static_cast<uint32_t>(numBlocks_), bytes, static_cast<uint32_t>(stride), mode_,
+                                         &ms);
 
             const double transfersPerIter = (mode_ == sharedToRegister::READ_WRITE) ? 2.0 : 1.0;
             const double bytesTransferred = static_cast<double>(sizeof(types::f64)) * transfersPerIter *
-                                            static_cast<double>(numIters_) * static_cast<double>(numBlocks_) * static_cast<double>(threads);
+                                            static_cast<double>(numIters_) * static_cast<double>(numBlocks_) *
+                                            static_cast<double>(threads);
             double bandwidthGBps = (bytesTransferred / (ms / 1000.0f)) / 1e9;
 
             enc_[resultCsv] << r + 1 << "," << bytes << "," << threads << "," << stride << "," << numIters_ << "," << ms

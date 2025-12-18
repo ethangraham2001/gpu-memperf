@@ -44,7 +44,6 @@ static __used mode parseMode(std::string& modeArg) {
  * @param elapsedMs Returned elapsed milliseconds for measured kernel.
  */
 void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint32_t numBlocks,
-                                  uint64_t sharedBytes, uint32_t stride, sharedToRegister::mode mode,
-                                  float* elapsedMs);
+                                  uint64_t sharedBytes, uint32_t stride, sharedToRegister::mode mode, float* elapsedMs);
 
 #endif /* SHARED_TO_REGISTER_KERNEL_HH */
