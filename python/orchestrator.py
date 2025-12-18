@@ -88,7 +88,6 @@ class GlobalToSharedBenchmark(Benchmark):
         ]
 
     def run(self) -> tuple[str, bool]:
-        import pandas as pd
         merged_df = pd.DataFrame()
         last_out = ""
         last_failed = False
@@ -212,7 +211,6 @@ class RandomAccessBenchmark(Benchmark):
         For each mode (l1, l2, dram), we run multiple measurements per block count (1, 36, 72, 108)
         to gather sufficient data for error bars plotting.
         """
-        import pandas as pd
         merged_df = pd.DataFrame()
         last_out = ""
         last_failed = False
@@ -449,7 +447,7 @@ class Orchestrator:
 
     @staticmethod
     def _prog_to_bench(prog: Program, reps: int | None) -> Benchmark:
-        # If global reps is specified, use it. Otherwise rely on default or None (which falls back to class default).
+        # If global reps is specified, use it.
         kwargs = {}
         if reps is not None:
             kwargs['reps'] = reps

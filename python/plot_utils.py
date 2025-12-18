@@ -191,6 +191,7 @@ def line_plot(x, ys, labels, *, outfile, cfg: PlotConfig):
     fig.tight_layout()
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
+    plt.close(fig)
 
 
 def plot_with_peak(
@@ -242,6 +243,7 @@ def plot_with_peak(
     fig.tight_layout()
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
+    plt.close(fig)
 
 
 def plot_with_error_bars(
@@ -310,6 +312,7 @@ def plot_with_error_bars(
     fig.tight_layout()
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
+    plt.close(fig)
 
 
 def plot_with_error_bars_raw(
@@ -468,7 +471,7 @@ def plot_with_box_plots(
     # Must be done BEFORE setting ticks, otherwise labels might be reset
     ax.set_xscale("linear") 
     
-    # Override x ticks 
+    # Override x ticks
     ax.set_xticks(indices)
     ax.set_xticklabels([str(val) for val in x])
 
@@ -478,3 +481,4 @@ def plot_with_box_plots(
     fig.tight_layout()
     fig.savefig(outfile, dpi=300)
     print(f"Saved plot: {outfile}")
+    plt.close(fig)
