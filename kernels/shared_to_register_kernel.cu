@@ -41,14 +41,15 @@ __global__ void sharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uin
 }
 
 template <sharedToRegister::mode MODE>
-void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes, uint32_t stride,
-                  float* elapsedMs) {
+void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint32_t numBlocks, uint64_t sharedBytes,
+                  uint32_t stride, float* elapsedMs) {
   cudaError_t err;
   const dim3 block(threads);
+  const dim3 grid(numBlocks);
   const uint32_t warmupIters = 1000;
 
   /* Warmup launch. */
-  sharedToRegisterKernel<MODE><<<1, block, sharedBytes>>>(numElems, warmupIters, stride);
+  sharedToRegisterKernel<MODE><<<grid, block, sharedBytes>>>(numElems, warmupIters, stride);
   err = cudaDeviceSynchronize();
   throwOnErr(err);
 
@@ -58,7 +59,7 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
 
   /* Kernel uses extern shared memory size = sharedBytes. */
   cudaEventRecord(start);
-  sharedToRegisterKernel<MODE><<<1, block, sharedBytes>>>(numElems, numIters, stride);
+  sharedToRegisterKernel<MODE><<<grid, block, sharedBytes>>>(numElems, numIters, stride);
   cudaEventRecord(stop);
 
   err = cudaEventSynchronize(stop);
@@ -78,19 +79,20 @@ void launchKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64
     *elapsedMs = ms;
 }
 
-void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                  uint32_t stride, sharedToRegister::mode mode, float* elapsedMs) {
+void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint32_t numBlocks,
+                                  uint64_t sharedBytes, uint32_t stride, sharedToRegister::mode mode,
+                                  float* elapsedMs) {
   assert(isPowerOf2(numElems));
 
   switch (mode) {
     case sharedToRegister::READ:
-      launchKernel<sharedToRegister::READ>(numElems, numIters, threads, sharedBytes, stride, elapsedMs);
+      launchKernel<sharedToRegister::READ>(numElems, numIters, threads, numBlocks, sharedBytes, stride, elapsedMs);
       break;
     case sharedToRegister::WRITE:
-      launchKernel<sharedToRegister::WRITE>(numElems, numIters, threads, sharedBytes, stride, elapsedMs);
+      launchKernel<sharedToRegister::WRITE>(numElems, numIters, threads, numBlocks, sharedBytes, stride, elapsedMs);
       break;
     case sharedToRegister::READ_WRITE:
-      launchKernel<sharedToRegister::READ_WRITE>(numElems, numIters, threads, sharedBytes, stride, elapsedMs);
+      launchKernel<sharedToRegister::READ_WRITE>(numElems, numIters, threads, numBlocks, sharedBytes, stride, elapsedMs);
       break;
     default:
       throw std::runtime_error("Invalid mode");

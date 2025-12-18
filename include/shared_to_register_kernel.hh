@@ -37,12 +37,14 @@ static __used mode parseMode(std::string& modeArg) {
  * @param numElems Number of 32-bit words in shared memory, must be power of two.
  * @param numIters Iterations per thread of the measured loop.
  * @param threads Threads per block.
+ * @param numBlocks Number of blocks to launch.
  * @param sharedBytes Size in bytes of the extern shared memory.
  * @param stride Stride in words used to create bank conflict patterns.
  * @param mode The access mode (READ, WRITE, READ_WRITE).
  * @param elapsedMs Returned elapsed milliseconds for measured kernel.
  */
-void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint64_t sharedBytes,
-                                  uint32_t stride, sharedToRegister::mode mode, float* elapsedMs);
+void launchSharedToRegisterKernel(uint32_t numElems, uint32_t numIters, uint32_t threads, uint32_t numBlocks,
+                                  uint64_t sharedBytes, uint32_t stride, sharedToRegister::mode mode,
+                                  float* elapsedMs);
 
 #endif /* SHARED_TO_REGISTER_KERNEL_HH */
