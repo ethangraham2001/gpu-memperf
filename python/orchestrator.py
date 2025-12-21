@@ -61,19 +61,21 @@ class Benchmark(ABC):
 
 class GlobalToSharedBenchmark(Benchmark):
     def __init__(
-        self, flops_per_elem: list[int], threads_per_block: int, num_blocks: int
+        self, flops_per_elem: list[int], threads_per_block: int, num_blocks: int, reps: int = 1
     ):
         self.name = "global_to_shared"
         self.flops_per_elem = flops_per_elem
         self.threads_per_block = threads_per_block
         self.num_blocks = num_blocks
+        self.reps = reps
 
     @classmethod
-    def default(cls):
+    def default(cls, reps: int = 1):
         return cls(
             flops_per_elem=[2**i for i in range(8)],
             threads_per_block=1024,
             num_blocks=108,
+            reps=reps,
         )
 
     def get_args(self) -> list[str]:
@@ -84,6 +86,43 @@ class GlobalToSharedBenchmark(Benchmark):
             f"--threads_per_block={self.threads_per_block}",
             f"--num_blocks={self.num_blocks}",
         ]
+
+    def run(self) -> tuple[str, bool]:
+        merged_df = pd.DataFrame()
+        last_out = ""
+        last_failed = False
+        final_result_path = None
+
+        for r in range(self.reps):
+            print(f"Measuring global_to_shared - {r + 1}/{self.reps}", flush=True)
+            cmd = [gpu_memperf_bin] + self.get_args()
+            out, failed = run_command_manual_check(cmd)
+            last_out = out
+            last_failed = failed
+            
+            if failed:
+                return out, failed
+            
+            # Parse output dir
+            res_path = None
+            for line in out.split("\n"):
+                if "wrote results to" in line:
+                    match = re.search(r'"(.*?)"', line)
+                    if match:
+                        res_path = Path(match.group(1))
+                        break
+            
+            if res_path and (res_path / "result.csv").exists():
+                df = pd.read_csv(res_path / "result.csv")
+                merged_df = pd.concat([merged_df, df], ignore_index=True)
+                final_result_path = res_path
+            else:
+                warn(f"Could not find results for global_to_shared rep {r}")
+
+        if final_result_path:
+            merged_df.to_csv(final_result_path / "result.csv", index=False)
+            
+        return last_out, last_failed
 
     def plot(self, path_to_results: Path, plot_dir: Path):
         result_csv = path_to_results.joinpath("result.csv")
@@ -117,7 +156,7 @@ class RandomAccessBenchmark(Benchmark):
         self.reps = reps
 
     @classmethod
-    def default_l1(cls):
+    def default_l1(cls, reps: int = 1):
         return cls(
             mode="l1",
             num_warps=[2**i for i in range(6)],
@@ -125,11 +164,11 @@ class RandomAccessBenchmark(Benchmark):
             working_set=8 * 1024,
             data_type="f32",
             num_blocks=[1, 36, 72, 108],
-            reps=3,
+            reps=reps,
         )
 
     @classmethod
-    def default_l2(cls):
+    def default_l2(cls, reps: int = 1):
         return cls(
             mode="l2",
             num_warps=[2**i for i in range(6)],
@@ -137,11 +176,11 @@ class RandomAccessBenchmark(Benchmark):
             working_set=8 * 1024 * 1024,
             data_type="f32",
             num_blocks=[1, 36, 72, 108],
-            reps=3,
+            reps=reps,
         )
 
     @classmethod
-    def default_dram(cls):
+    def default_dram(cls, reps: int = 1):
         return cls(
             mode="dram",
             num_warps=[2**i for i in range(6)],
@@ -149,7 +188,7 @@ class RandomAccessBenchmark(Benchmark):
             working_set=64 * 1024 * 1024,
             data_type="f32",
             num_blocks=[1, 36, 72, 108],
-            reps=3,
+            reps=reps,
         )
 
     def get_args(self, blocks: int, reps_override: int = 1) -> list[str]:
@@ -169,12 +208,8 @@ class RandomAccessBenchmark(Benchmark):
     def run(self) -> tuple[str, bool]:
         """
         Run the benchmark for random access.
-        For each mode (l1, l2, dram), we run 3 measurements per block count (1, 36, 72, 108)
+        For each mode (l1, l2, dram), we run multiple measurements per block count (1, 36, 72, 108)
         to gather sufficient data for error bars plotting.
-        
-        :param self: Description
-        :return: Description
-        :rtype: tuple[str, bool]
         """
         merged_df = pd.DataFrame()
         last_out = ""
@@ -244,7 +279,7 @@ class StridedAccessBenchmark(Benchmark):
         self.reps = reps
 
     @classmethod
-    def default_l1(cls):
+    def default_l1(cls, reps: int = 3):
         return cls(
             mode="L1",
             stride=[2**i for i in range(6)],
@@ -252,11 +287,11 @@ class StridedAccessBenchmark(Benchmark):
             working_sets = [1024 * x for x in (100,)],
             threads_per_block=1024,
             blocks=0,
-            reps=3,
+            reps=reps,
         )
 
     @classmethod
-    def default_l2(cls):
+    def default_l2(cls, reps: int = 3):
         return cls(
             mode="L2",
             stride=[2**i for i in range(6)],
@@ -264,11 +299,11 @@ class StridedAccessBenchmark(Benchmark):
             working_sets = [(1024**2) * x for x in (25,)],
             threads_per_block=1024,
             blocks=0,
-            reps=3,
+            reps=reps,
         )
 
     @classmethod
-    def default_dram(cls):
+    def default_dram(cls, reps: int = 3):
         return cls(
             mode="DRAM",
             stride=[2**i for i in range(6)],
@@ -276,7 +311,7 @@ class StridedAccessBenchmark(Benchmark):
             working_sets = [(1024**3) * x for x in (4,)],
             threads_per_block=1024,
             blocks=0,
-            reps=3,
+            reps=reps,
         )
 
     def get_args(self) -> list[str]:
@@ -317,13 +352,13 @@ class SharedToRegisterBenchmark(Benchmark):
         self.reps = reps
 
     @classmethod
-    def default(cls):
+    def default(cls, reps: int = 3):
         return cls(
             sizes=[4096 * (2**i) for i in range(4)],
             threads=[32 * (2**i) for i in range(4)],
             strides=[2**i for i in range(6)],
             num_iters=int(1e5),
-            reps=3,
+            reps=reps,
         )
 
     def get_args(self) -> list[str]:
@@ -383,14 +418,15 @@ class Program(Enum):
 
 
 class Orchestrator:
-    def __init__(self, out_dir: str, programs: list[Program]):
+    def __init__(self, out_dir: str, programs: list[Program], reps: int | None = None):
         self.programs = programs if len(programs) > 0 else list(Program)
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(exist_ok=True)
+        self.reps = reps
         self._write_bench_info()
 
     def run_all(self):
-        benches = map(lambda p: self._prog_to_bench(p), self.programs)
+        benches = map(lambda p: self._prog_to_bench(p, self.reps), self.programs)
         for prog, bench in zip(self.programs, benches):
             out, failed = bench.run()
             info(out)
@@ -410,24 +446,29 @@ class Orchestrator:
             bench.plot(new_result_path, self.out_dir)
 
     @staticmethod
-    def _prog_to_bench(prog: Program) -> Benchmark:
+    def _prog_to_bench(prog: Program, reps: int | None) -> Benchmark:
+        # If global reps is specified, use it.
+        kwargs = {}
+        if reps is not None:
+            kwargs['reps'] = reps
+
         match prog:
             case Program.GlobalToShared:
-                return GlobalToSharedBenchmark.default()
+                return GlobalToSharedBenchmark.default(**kwargs)
             case Program.RandomAccessL1:
-                return RandomAccessBenchmark.default_l1()
+                return RandomAccessBenchmark.default_l1(**kwargs)
             case Program.RandomAccessL2:
-                return RandomAccessBenchmark.default_l2()
+                return RandomAccessBenchmark.default_l2(**kwargs)
             case Program.RandomAccessDRAM:
-                return RandomAccessBenchmark.default_dram()
+                return RandomAccessBenchmark.default_dram(**kwargs)
             case Program.StridedAccessL1:
-                return StridedAccessBenchmark.default_l1()
+                return StridedAccessBenchmark.default_l1(**kwargs)
             case Program.StridedAccessL2:
-                return StridedAccessBenchmark.default_l2()
+                return StridedAccessBenchmark.default_l2(**kwargs)
             case Program.StridedAccessDRAM:
-                return StridedAccessBenchmark.default_dram()
+                return StridedAccessBenchmark.default_dram(**kwargs)
             case Program.SharedToRegisters:
-                return SharedToRegisterBenchmark.default()
+                return SharedToRegisterBenchmark.default(**kwargs)
 
     def _write_bench_info(self):
         info_path = self.out_dir.joinpath("info")
@@ -462,8 +503,9 @@ if __name__ == "__main__":
         help="Run this benchmark when enabled. If none are specified, all enabled by default",
     )
     parser.add_argument("--out", type=str, default="orchestrator_out")
+    parser.add_argument("--reps", type=int, default=None, help="Number of repetitions for benchmarks")
     args = parser.parse_args()
     verbose = args.verbose
 
-    orchestrator = Orchestrator(programs=args.program, out_dir=args.out)
+    orchestrator = Orchestrator(programs=args.program, out_dir=args.out, reps=args.reps)
     orchestrator.run_all()
