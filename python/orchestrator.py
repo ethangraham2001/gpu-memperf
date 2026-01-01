@@ -61,7 +61,11 @@ class Benchmark(ABC):
 
 class GlobalToSharedBenchmark(Benchmark):
     def __init__(
-        self, flops_per_elem: list[int], threads_per_block: int, num_blocks: int, reps: int = 1
+        self,
+        flops_per_elem: list[int],
+        threads_per_block: int,
+        num_blocks: int,
+        reps: int = 1,
     ):
         self.name = "global_to_shared"
         self.flops_per_elem = flops_per_elem
@@ -99,10 +103,10 @@ class GlobalToSharedBenchmark(Benchmark):
             out, failed = run_command_manual_check(cmd)
             last_out = out
             last_failed = failed
-            
+
             if failed:
                 return out, failed
-            
+
             # Parse output dir
             res_path = None
             for line in out.split("\n"):
@@ -111,7 +115,7 @@ class GlobalToSharedBenchmark(Benchmark):
                     if match:
                         res_path = Path(match.group(1))
                         break
-            
+
             if res_path and (res_path / "result.csv").exists():
                 df = pd.read_csv(res_path / "result.csv")
                 merged_df = pd.concat([merged_df, df], ignore_index=True)
@@ -121,7 +125,7 @@ class GlobalToSharedBenchmark(Benchmark):
 
         if final_result_path:
             merged_df.to_csv(final_result_path / "result.csv", index=False)
-            
+
         return last_out, last_failed
 
     def plot(self, path_to_results: Path, plot_dir: Path):
@@ -191,7 +195,7 @@ class RandomAccessBenchmark(Benchmark):
             reps=reps,
         )
 
-    def get_args(self, blocks: int, reps_override: int = 1) -> list[str]:
+    def get_args(self):
         fmt_num_warps = ",".join(str(w) for w in self.num_warps)
         args = [
             self.name,
@@ -200,8 +204,8 @@ class RandomAccessBenchmark(Benchmark):
             f"--working_set={self.working_set}",
             f"--mode={self.mode}",
             f"--data_type={self.data_type}",
-            f"--reps={reps_override}",
-            f"--num_blocks={blocks}",
+            f"--reps={self.reps}",
+            f"--num_blocks={self.num_blocks}",
         ]
         return args
 
@@ -214,22 +218,25 @@ class RandomAccessBenchmark(Benchmark):
         merged_df = pd.DataFrame()
         last_out = ""
         last_failed = False
-        
+
         final_result_path = None
 
         for idx, blocks in enumerate(self.num_blocks):
             for r in range(self.reps):
-                print(f"Measuring random access for {self.mode} - {blocks} blocks - {r + 1}/{self.reps}", flush=True)
-                
+                print(
+                    f"Measuring random access for {self.mode} - {blocks} blocks - {r + 1}/{self.reps}",
+                    flush=True,
+                )
+
                 # Pass reps=1 to binary so it runs once
-                cmd = [gpu_memperf_bin] + self.get_args(blocks, reps_override=1)
+                cmd = [gpu_memperf_bin] + self.get_args()
                 out, failed = run_command_manual_check(cmd)
                 last_out = out
                 last_failed = failed
-                
+
                 if failed:
                     return out, failed
-                
+
                 # Parse output dir from this run
                 res_path = None
                 for line in out.split("\n"):
@@ -238,7 +245,7 @@ class RandomAccessBenchmark(Benchmark):
                         if match:
                             res_path = Path(match.group(1))
                             break
-                
+
                 if res_path and (res_path / "result.csv").exists():
                     df = pd.read_csv(res_path / "result.csv")
                     df["num_blocks"] = blocks
@@ -251,7 +258,7 @@ class RandomAccessBenchmark(Benchmark):
 
         if final_result_path:
             merged_df.to_csv(final_result_path / "result.csv", index=False)
-            
+
         return last_out, last_failed
 
     def plot(self, path_to_results: Path, plot_dir: Path):
@@ -263,7 +270,7 @@ class StridedAccessBenchmark(Benchmark):
         self,
         mode: str,
         stride: list[int],
-        working_sets : list[int],
+        working_sets: list[int],
         iters: int,
         threads_per_block: int,
         blocks: int,
@@ -284,7 +291,7 @@ class StridedAccessBenchmark(Benchmark):
             mode="L1",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
-            working_sets = [1024 * x for x in (100,)],
+            working_sets=[1024 * x for x in (100,)],
             threads_per_block=1024,
             blocks=0,
             reps=reps,
@@ -296,7 +303,7 @@ class StridedAccessBenchmark(Benchmark):
             mode="L2",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
-            working_sets = [(1024**2) * x for x in (25,)],
+            working_sets=[(1024**2) * x for x in (25,)],
             threads_per_block=1024,
             blocks=0,
             reps=reps,
@@ -308,7 +315,7 @@ class StridedAccessBenchmark(Benchmark):
             mode="DRAM",
             stride=[2**i for i in range(6)],
             iters=int(1e6),
-            working_sets = [(1024**3) * x for x in (4,)],
+            working_sets=[(1024**3) * x for x in (4,)],
             threads_per_block=1024,
             blocks=0,
             reps=reps,
@@ -450,7 +457,7 @@ class Orchestrator:
         # If global reps is specified, use it.
         kwargs = {}
         if reps is not None:
-            kwargs['reps'] = reps
+            kwargs["reps"] = reps
 
         match prog:
             case Program.GlobalToShared:
@@ -503,7 +510,9 @@ if __name__ == "__main__":
         help="Run this benchmark when enabled. If none are specified, all enabled by default",
     )
     parser.add_argument("--out", type=str, default="orchestrator_out")
-    parser.add_argument("--reps", type=int, default=None, help="Number of repetitions for benchmarks")
+    parser.add_argument(
+        "--reps", type=int, default=None, help="Number of repetitions for benchmarks"
+    )
     args = parser.parse_args()
     verbose = args.verbose
 
