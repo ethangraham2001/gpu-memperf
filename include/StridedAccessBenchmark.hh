@@ -78,7 +78,9 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
     for (uint64_t workingSetSize_ : workingSets_) {
       const uint64_t numElems = util::bytesToNumElems<DataType>(workingSetSize_);
       if (!numElems)
-        throw std::runtime_error("working_set too small");
+        throw std::invalid_argument("working_set too small");
+      else if (!std::has_single_bit(numElems))
+        throw std::invalid_argument("number of elements should be a power of 2");
 
       std::vector<DataType> hostData = util::randomVector<DataType>(numElems);
 
