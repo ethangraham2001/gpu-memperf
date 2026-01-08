@@ -117,7 +117,6 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
     df_agg = df.groupby("stride").agg({"bandwidthGBps": "mean"}).reset_index()
     df_agg = df_agg.sort_values("stride")
 
-    # Increase figure width to accommodate external legend
     cfg = PlotConfig(
         xlabel="Stride",
         ylabel="Bandwidth (GB/s)",
@@ -129,7 +128,7 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
     
     fig, ax = plt.subplots(figsize=cfg.figsize)
 
-    # 1. Interpolation line for power-of-two strides
+    # Interpolation line for power-of-two strides
     power_of_two_strides = [2**i for i in range(0, 6)]
     df_p2 = df_agg[df_agg["stride"].isin(power_of_two_strides)].sort_values("stride")
     
@@ -143,7 +142,7 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
             zorder=1
         )
 
-    # 2. Scatter points grouped by conflict degree
+    # Scatter points grouped by conflict degree
     categories = {
         1: "Conflict Free \n(Odd strides)",
         2: "2-way Conflicts",
@@ -152,9 +151,6 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
         16: "16-way Conflicts",
         32: "32-way Conflicts"
     }
-
-    # Track y-values for annotations
-    category_means = {}
 
     for gcd_val in sorted(categories.keys()):
         label = categories[gcd_val]
@@ -172,16 +168,12 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
                 linewidth=0.5,
                 zorder=2
             )
-            category_means[gcd_val] = subset["bandwidthGBps"].mean()
 
     _apply_axes_config(ax, cfg)
     
-
-
     ax.set_xticks(range(0, 32 + 1, 4))
     ax.minorticks_on()
     
-    # 4. Legend on the right
     ax.legend(
         bbox_to_anchor=(1.02, 1), 
         loc='upper left', 
