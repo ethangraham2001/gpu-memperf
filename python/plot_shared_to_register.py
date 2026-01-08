@@ -123,7 +123,7 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
         title="Shared Memory to Register Bandwidth (36 SMs, All Strides)",
         logx=False,
         xticks=None,
-        figsize=(10, 5) 
+        figsize=(6.0, 3.0) 
     )
     
     fig, ax = plt.subplots(figsize=cfg.figsize)
@@ -138,7 +138,7 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
             df_p2["bandwidthGBps"], 
             linestyle=':', 
             color='gray', 
-            alpha=0.6, 
+            alpha=1, 
             zorder=1
         )
 
@@ -162,8 +162,8 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
                 subset["stride"], 
                 subset["bandwidthGBps"], 
                 label=label, 
-                s=60, 
-                alpha=0.9, 
+                s=30, 
+                alpha=1, 
                 edgecolor='black', 
                 linewidth=0.5,
                 zorder=2
@@ -186,7 +186,7 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
     fig.tight_layout()
     plt.subplots_adjust(right=0.8)
     
-    fig.savefig(output_file, dpi=300)
+    fig.savefig(output_file.with_suffix(".pdf"), bbox_inches="tight")
     print(f"Saved plot: {output_file}")
     plt.close(fig)
 
