@@ -189,7 +189,7 @@ class RandomAccessBenchmark(Benchmark):
             mode="dram",
             num_warps=[2**i for i in range(6)],
             num_accesses=int(1e7),
-            working_set=64 * 1024 * 1024,
+            working_set=2 * 1024 * 1024 * 1024,
             data_type="f32",
             num_blocks=[1, 36, 72, 108],
             reps=reps,

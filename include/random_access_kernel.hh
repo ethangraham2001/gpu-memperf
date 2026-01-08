@@ -23,18 +23,18 @@ static const constexpr std::string_view modeDram = "dram";
 static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
     100 * common::KiB, /* L1. */
     25 * common::MiB,  /* L2. */
-    2 * common::GiB,   /* DRAM. */
+    8 * common::GiB,   /* DRAM. */
 };
 
 /**
  * sensibleNumBlocks - return a sensible default number of blocks for each mode
  *
- * The number of blocks is chosen as a multiple of 36, since we have 36 SMs.
+ * The default number of blocks is set to 36 for all memory levels, for a one-to-one mapping with SMs.
  */
 static const constexpr uint64_t sensibleNumBlocks[MODES_SIZE] = {
-    1,   /* L1 Cache. */
-    108, /* L2 Cache - 72 blocks underutilize the SMs while 144 blocks introduce overhead, making 108 the best balance. */
-    72, /* DRAM: provisional choice; other block counts will be analyzed to optimize it. */
+    36, /* L1 Cache. */
+    36, /* L2 Cache. */
+    36, /* DRAM. */
 };
 
 static __used mode parseMode(std::string& modeArg) {
