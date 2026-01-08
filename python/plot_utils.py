@@ -383,6 +383,7 @@ def plot_with_box_plots(
     legend_title: Optional[str] = None,
     legend_loc: str = "best",
     box_width: float = 0.6,
+    jitter_frac: float = 0.1,
 ):
     """Create a grouped box plot with scatter overlay.
 
@@ -400,22 +401,53 @@ def plot_with_box_plots(
     n_ticks = len(x)
     
     indices = range(n_ticks)
-    total_group_width = 0.8
-    single_box_width = total_group_width / n_series
-    offsets = [
-        (i - (n_series - 1) / 2) * single_box_width for i in range(n_series)
-    ]
+    total_group_width = box_width
+    single_box_width = total_group_width / n_series if n_series > 0 else total_group_width
 
     for i, (series, label) in enumerate(zip(y_raw, labels)):
-        positions = [idx + offsets[i] for idx in indices]
-        
+        positions = []
         valid_data = []
         valid_pos = []
-        for d, p in zip(series, positions):
-            if d:
-                valid_data.append(d)
-                valid_pos.append(p)
-        
+        jitter_scales = []
+        for idx, d in enumerate(series):
+            if not d:
+                continue
+            base_x = idx
+            available_series = [
+                s_idx
+                for s_idx, s in enumerate(y_raw)
+                if idx < len(s) and s[idx]
+            ]
+            if len(available_series) <= 1:
+                pos = base_x
+            else:
+                ranges = {}
+                for s_idx in available_series:
+                    data = y_raw[s_idx][idx]
+                    min_val = min(data)
+                    max_val = max(data)
+                    span = max(max_val - min_val, 1e-12)
+                    pad = span * 0.15
+                    ranges[s_idx] = (min_val - pad, max_val + pad)
+                overlap_group = []
+                for s_idx in available_series:
+                    i_min, i_max = ranges[i]
+                    s_min, s_max = ranges[s_idx]
+                    if not (i_max < s_min or i_min > s_max):
+                        overlap_group.append(s_idx)
+                if len(overlap_group) <= 1:
+                    pos = base_x
+                    jitter_scale = 0.0
+                else:
+                    rank = overlap_group.index(i)
+                    offset = (rank - (len(overlap_group) - 1) / 2) * single_box_width
+                    pos = base_x + offset
+                    jitter_scale = jitter_frac
+            positions.append(pos)
+            valid_data.append(d)
+            valid_pos.append(pos)
+            jitter_scales.append(jitter_scale)
+
         if not valid_data:
             continue
 
@@ -428,7 +460,7 @@ def plot_with_box_plots(
         bp = ax.boxplot(
             valid_data,
             positions=valid_pos,
-            widths=single_box_width * 0.9,
+            widths=single_box_width * 0.8,
             patch_artist=True,
             showfliers=False, # We will plot points manually
             medianprops=dict(color="black", linewidth=1.2),
@@ -439,25 +471,30 @@ def plot_with_box_plots(
         # Style boxes and legend
         for j, box in enumerate(bp['boxes']):
             box.set_facecolor(color)
-            box.set_alpha(0.6)
+            box.set_alpha(0.75)
             box.set_edgecolor("black")
             box.set_linewidth(1)
+            box.set_zorder(3)
             if j == 0:
                 box.set_label(label)
 
         # Scatter overlay
-        for data_points, pos in zip(valid_data, valid_pos):
+        for data_points, pos, jitter_scale in zip(valid_data, valid_pos, jitter_scales):
             # Jitter
-            jitter = np.random.uniform(-single_box_width * 0.2, single_box_width * 0.2, size=len(data_points))
+            jitter = np.random.uniform(
+                -single_box_width * jitter_scale,
+                single_box_width * jitter_scale,
+                size=len(data_points),
+            )
             ax.scatter(
                 [pos] * len(data_points) + jitter, 
                 data_points, 
                 color=color, 
                 edgecolor='black', 
                 linewidth=0.5,
-                s=15, 
-                alpha=0.9,
-                zorder=3
+                s=12, 
+                alpha=0.6,
+                zorder=2
             )
 
     # Temporarily clear xticks from cfg to prevent _apply_axes_config from setting them wrong

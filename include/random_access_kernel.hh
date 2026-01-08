@@ -23,7 +23,7 @@ static const constexpr std::string_view modeDram = "dram";
 static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
     100 * common::KiB, /* L1. */
     25 * common::MiB,  /* L2. */
-    2 * common::GiB,   /* DRAM. */
+    8 * common::GiB,   /* DRAM. */
 };
 
 /**
@@ -34,7 +34,7 @@ static const constexpr uint64_t sensibleCacheSizes[MODES_SIZE] = {
 static const constexpr uint64_t sensibleNumBlocks[MODES_SIZE] = {
     1,   /* L1 Cache. */
     108, /* L2 Cache - 72 blocks underutilize the SMs while 144 blocks introduce overhead, making 108 the best balance. */
-    72, /* DRAM: provisional choice; other block counts will be analyzed to optimize it. */
+    36, /* DRAM: provisional choice; other block counts will be analyzed to optimize it. */
 };
 
 static __used mode parseMode(std::string& modeArg) {

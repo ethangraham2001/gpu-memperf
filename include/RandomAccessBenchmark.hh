@@ -115,7 +115,7 @@ class RandomAccessBenchmarkGeneric : public RandomAccessBenchmarkBase {
   bool configIsValid() {
     uint64_t numElems = workingSetSize_ / sizeof(DataType);
     uint64_t indicesSize = numElems * sizeof(uint32_t);
-    if (workingSetSize_ + indicesSize >= cacheSize_)
+    if (workingSetSize_ + indicesSize > cacheSize_)
       return false;
     /* TODO: once we support passing the number of warps as a list, we should
      * be adding a validation step for that too (e.g, in the L1 mode, we

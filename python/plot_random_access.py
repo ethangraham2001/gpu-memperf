@@ -106,9 +106,9 @@ def plot_single_box_plot(name, df, plot_dir):
 
 def plot_combined(results, plot_dir):
     mapping = {
-        "random_access_l1": 1,
-        "random_access_l2": 108,
-        "random_access_dram": 72
+        "random_access_l1": 36,
+        "random_access_l2": 36,
+        "random_access_dram": 36
     }
     
     valid_keys = [k for k in mapping.keys() if k in results]
@@ -179,9 +179,9 @@ def plot_combined(results, plot_dir):
 
 def plot_combined_box_plot(results, plot_dir):
     mapping = {
-        "random_access_l1": 1,
-        "random_access_l2": 108,
-        "random_access_dram": 72
+        "random_access_l1": 36,
+        "random_access_l2": 36,
+        "random_access_dram": 36
     }
     
     valid_keys = [k for k in mapping.keys() if k in results]
