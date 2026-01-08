@@ -1,8 +1,10 @@
 import argparse
 import pandas as pd
 from pathlib import Path
+import math
+import matplotlib.pyplot as plt
 
-from plot_utils import PlotConfig, line_plot, plot_with_error_bars, _prepare_outfile
+from plot_utils import PlotConfig, line_plot, plot_with_error_bars, _prepare_outfile, _apply_axes_config
 
 
 def plot_shared_memory_multiple_threads(csv_file: Path, output_file: Path) -> None:
@@ -96,6 +98,107 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
     )
 
 
+def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
+    """
+    Plot shared memory to register bandwidth as scatter plot with linear scale for all strides.
+    Groups strides by bank conflict degree (GCD with 32).
+    """
+    df = pd.read_csv(csv_file)
+
+    # If multiple experiments were measured, take the benchmark with the maximum threads and bytes
+    if "threads" in df.columns:
+        max_threads = df["threads"].max()
+        df = df[df["threads"] == max_threads]
+    if "bytes" in df.columns:
+        max_bytes = df["bytes"].max()
+        df = df[df["bytes"] == max_bytes]
+
+    # Average over runs
+    df_agg = df.groupby("stride").agg({"bandwidthGBps": "mean"}).reset_index()
+    df_agg = df_agg.sort_values("stride")
+
+    # Increase figure width to accommodate external legend
+    cfg = PlotConfig(
+        xlabel="Stride",
+        ylabel="Bandwidth (GB/s)",
+        title="Shared Memory to Register Bandwidth (36 SMs, All Strides)",
+        logx=False,
+        xticks=None,
+        figsize=(10, 5) 
+    )
+    
+    fig, ax = plt.subplots(figsize=cfg.figsize)
+
+    # 1. Interpolation line for power-of-two strides
+    power_of_two_strides = [2**i for i in range(0, 6)]
+    df_p2 = df_agg[df_agg["stride"].isin(power_of_two_strides)].sort_values("stride")
+    
+    if not df_p2.empty:
+        ax.plot(
+            df_p2["stride"], 
+            df_p2["bandwidthGBps"], 
+            linestyle=':', 
+            color='gray', 
+            alpha=0.6, 
+            zorder=1
+        )
+
+    # 2. Scatter points grouped by conflict degree
+    categories = {
+        1: "Conflict Free \n(Odd strides)",
+        2: "2-way Conflicts",
+        4: "4-way Conflicts",
+        8: "8-way Conflicts",
+        16: "16-way Conflicts",
+        32: "32-way Conflicts"
+    }
+
+    # Track y-values for annotations
+    category_means = {}
+
+    for gcd_val in sorted(categories.keys()):
+        label = categories[gcd_val]
+        mask = df_agg["stride"].apply(lambda s: math.gcd(int(s), 32) == gcd_val)
+        subset = df_agg[mask]
+        
+        if not subset.empty:
+            ax.scatter(
+                subset["stride"], 
+                subset["bandwidthGBps"], 
+                label=label, 
+                s=60, 
+                alpha=0.9, 
+                edgecolor='black', 
+                linewidth=0.5,
+                zorder=2
+            )
+            category_means[gcd_val] = subset["bandwidthGBps"].mean()
+
+    _apply_axes_config(ax, cfg)
+    
+
+
+    ax.set_xticks(range(0, 32 + 1, 4))
+    ax.minorticks_on()
+    
+    # 4. Legend on the right
+    ax.legend(
+        bbox_to_anchor=(1.02, 1), 
+        loc='upper left', 
+        borderaxespad=0.,
+        fancybox=True,
+        framealpha=1.0,
+        edgecolor='black'
+    )
+    
+    fig.tight_layout()
+    plt.subplots_adjust(right=0.8)
+    
+    fig.savefig(output_file, dpi=300)
+    print(f"Saved plot: {output_file}")
+    plt.close(fig)
+
+
 def main():
     parser = argparse.ArgumentParser(
         usage="python plot_shared_to_register.py <csv_file> [--output output_file] [--mode mode]"
@@ -106,7 +209,7 @@ def main():
         "--mode",
         type=str,
         default="error_bars",
-        choices=["multiple_threads", "error_bars"],
+        choices=["multiple_threads", "error_bars", "all_strides"],
     )
 
     args = parser.parse_args()
@@ -116,6 +219,8 @@ def main():
         )
     elif args.mode == "error_bars":
         plot_shared_memory_error_bars(args.csv_file, _prepare_outfile(args.output))
+    elif args.mode == "all_strides":
+        plot_shared_memory_all_strides(args.csv_file, _prepare_outfile(args.output))
 
 
 if __name__ == "__main__":
