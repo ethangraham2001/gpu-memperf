@@ -83,7 +83,7 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
         title="Shared Memory to Register Bandwidth (Single SM, 8 KiB read)",
         logx=True,
         xticks=xticks,
-    )
+     )
 
     y_triplets = [triplets]
     labels = [f"{threads} threads" for threads in df_sorted["threads"].unique()]
@@ -92,7 +92,7 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
         xticks,
         y_triplets,
         labels,
-        outfile=output_file,
+        outfile=output_file.with_suffix(".pdf"),
         cfg=cfg,
         legend_title=None,
     )

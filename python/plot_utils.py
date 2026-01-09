@@ -255,7 +255,7 @@ def plot_with_error_bars(
     cfg: PlotConfig,
     palette: Optional[Union[Dict, Sequence]] = None,
     markers: Optional[Union[Dict, Sequence]] = None,
-    linewidth: float = 2.0,
+    linewidth: float = 1.0,
     capsize: float = 4.0,
     fill_alpha: float = 0.12,
     legend_title: Optional[str] = None,
@@ -292,7 +292,7 @@ def plot_with_error_bars(
             mids,
             yerr=[lower_err, upper_err],
             marker=marker,
-            linestyle="-",
+            linestyle="--",
             linewidth=linewidth,
             color=color,
             ecolor=color,
@@ -310,7 +310,7 @@ def plot_with_error_bars(
     ax.legend(title=legend_title, loc=legend_loc)
 
     fig.tight_layout()
-    fig.savefig(outfile, dpi=300)
+    fig.savefig(outfile, bbox_inches="tight")
     print(f"Saved plot: {outfile}")
     plt.close(fig)
 
