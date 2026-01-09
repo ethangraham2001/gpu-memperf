@@ -14,7 +14,7 @@ import re
 from plot_global_to_shared import plot_global_to_shared
 from plot_shared_to_register import (
     plot_shared_memory_error_bars,
-    plot_shared_memory_multiple_threads,
+    plot_shared_memory_all_strides,
 )
 from plot_random_access import plot_all
 from plot_strided_access import plot_strided_access_bandwidth
@@ -386,8 +386,8 @@ class SharedToRegisterBenchmark(Benchmark):
         plot_shared_memory_error_bars(
             result_csv, plot_dir.joinpath("shared_to_regs_error_bars.png")
         )
-        plot_shared_memory_multiple_threads(
-            result_csv, plot_dir.joinpath("shared_to_regs_multiple_threads.png")
+        plot_shared_memory_all_strides(
+            result_csv, plot_dir.joinpath("shared_to_regs_all_strides.png")
         )
 
 

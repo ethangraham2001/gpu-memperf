@@ -64,6 +64,9 @@ def plot_shared_memory_error_bars(csv_file: Path, output_file: Path) -> None:
         max_bytes = df["bytes"].max()
         df = df[df["bytes"] == max_bytes]
 
+    # Filter only power of two strides
+    df = df[df["stride"].apply(lambda x: (int(x) & (int(x) - 1) == 0))]
+
     df_sorted = df.sort_values("stride")
     xticks = sorted(df_sorted["stride"].unique())
 
