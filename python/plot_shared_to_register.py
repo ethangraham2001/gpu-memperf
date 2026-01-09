@@ -152,9 +152,11 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
         32: "32-way Conflicts"
     }
 
+    shared_mem_num_banks = 32
+
     for gcd_val in sorted(categories.keys()):
         label = categories[gcd_val]
-        mask = df_agg["stride"].apply(lambda s: math.gcd(int(s), 32) == gcd_val)
+        mask = df_agg["stride"].apply(lambda s: math.gcd(int(s), shared_mem_num_banks) == gcd_val)
         subset = df_agg[mask]
         
         if not subset.empty:
@@ -171,7 +173,7 @@ def plot_shared_memory_all_strides(csv_file: Path, output_file: Path) -> None:
 
     _apply_axes_config(ax, cfg)
     
-    ax.set_xticks(range(0, 32 + 1, 4))
+    ax.set_xticks(range(0, shared_mem_num_banks + 1, 4))
     ax.minorticks_on()
     
     ax.legend(
