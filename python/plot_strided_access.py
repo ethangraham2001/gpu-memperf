@@ -7,10 +7,10 @@ working set size. Uses error bars to show variance across multiple runs.
 
 import argparse
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict
+import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
-from plot_utils import PlotConfig, plot_with_error_bars, init_style
+from plot_utils import PlotConfig, _apply_axes_config, plot_with_error_bars, init_style
 
 
 def parse_working_set_size(ws_str: str) -> tuple:
@@ -50,12 +50,12 @@ def parse_strided_access_csv(csv_file: Path) -> Dict[str, Dict]:
     Parse strided access CSV and organize data by working set and stride.
     
     Expected CSV format:
-      blocks,threads_per_block,working_set,iters,stride,bandwidth,min_bandwidth,max_bandwidth
+      blocks,threads_per_block,working_set,iters,stride,rep,bandwidth
     
     Returns:
       {
         "working_set_name": {
-          stride: [(low, mid, high), ...]
+          stride: [bandwidth_gbps, ...]
         }
       }
     """
@@ -63,8 +63,6 @@ def parse_strided_access_csv(csv_file: Path) -> Dict[str, Dict]:
     
     # Convert bandwidth from bytes/s to GB/s
     df['bandwidth_gbps'] = df['bandwidth'].astype(float) / 1e9
-    df['min_bandwidth_gbps'] = df['min_bandwidth'].astype(float) / 1e9
-    df['max_bandwidth_gbps'] = df['max_bandwidth'].astype(float) / 1e9
     
     # Group by working_set, then by stride
     result = {}
@@ -72,12 +70,7 @@ def parse_strided_access_csv(csv_file: Path) -> Dict[str, Dict]:
         ws_data = {}
         
         for stride, stride_group in ws_group.groupby('stride'):
-            # Use min/max/mean from CSV columns directly
-            mean_bw = stride_group['bandwidth_gbps'].values[0]
-            min_bw = stride_group['min_bandwidth_gbps'].values[0]
-            max_bw = stride_group['max_bandwidth_gbps'].values[0]
-            
-            ws_data[stride] = (min_bw, mean_bw, max_bw)
+            ws_data[stride] = stride_group['bandwidth_gbps'].tolist()
         
         result[ws_name] = ws_data
     
@@ -105,19 +98,28 @@ def plot_strided_access_bandwidth(csv_file: Path, output_file: Path, mode: str =
         all_strides.update(ws_data.keys())
     all_strides = sorted(all_strides)
     
-    # Prepare data for plot_with_error_bars
+    # Prepare data for plot_with_error_bars and plot_with_box_plots
     y_triplets = []
+    y_raw = []
     labels = []
     
     for ws_name in sorted_ws:
         ws_data = data[ws_name]
-        series = []
+        series_triplets = []
+        series_raw = []
         for stride in all_strides:
             if stride in ws_data:
-                series.append(ws_data[stride])
+                raw_vals = ws_data[stride]
+                min_bw = min(raw_vals)
+                mean_bw = sum(raw_vals) / len(raw_vals)
+                max_bw = max(raw_vals)
+                series_triplets.append((min_bw, mean_bw, max_bw))
+                series_raw.append(raw_vals)
             else:
-                series.append((0, 0, 0))  # Fallback if missing
-        y_triplets.append(series)
+                series_triplets.append((0, 0, 0))  # Fallback if missing
+                series_raw.append([])
+        y_triplets.append(series_triplets)
+        y_raw.append(series_raw)
         labels.append(f"{ws_labels[ws_name]} working set")
     
     cfg = PlotConfig(
@@ -140,6 +142,113 @@ def plot_strided_access_bandwidth(csv_file: Path, output_file: Path, mode: str =
         legend_title="Working set size",
         legend_loc="lower left",
     )
+
+    box_output = output_file.with_name(output_file.stem + "_box" + output_file.suffix)
+    cfg_box = PlotConfig(
+        xlabel="Stride",
+        ylabel="Bandwidth (GB/s)",
+        title=f"Bandwidth vs stride ({mode})",
+        xticks=all_strides,
+        logx=False,
+        figsize=(10, 6),
+        grid=True,
+    )
+
+    plot_overlapping_box_plots(
+        all_strides,
+        y_raw,
+        labels,
+        outfile=box_output,
+        cfg=cfg_box,
+        legend_title="Working set size",
+        legend_loc="lower left",
+        box_width=0.2,
+    )
+
+def plot_overlapping_box_plots(
+    x,
+    y_raw,
+    labels,
+    *,
+    outfile,
+    cfg: PlotConfig,
+    legend_title: str,
+    legend_loc: str,
+    box_width: float,
+):
+    init_style()
+    fig, ax = plt.subplots(figsize=cfg.figsize)
+
+    n_ticks = len(x)
+    indices = range(n_ticks)
+
+    for i, (series, label) in enumerate(zip(y_raw, labels)):
+        positions = list(indices)
+        valid_data = []
+        valid_pos = []
+        for d, p in zip(series, positions):
+            if d:
+                valid_data.append(d)
+                valid_pos.append(p)
+
+        if not valid_data:
+            continue
+
+        color = ax._get_lines.get_next_color()
+        bp = ax.boxplot(
+            valid_data,
+            positions=valid_pos,
+            widths=box_width * 0.9,
+            patch_artist=True,
+            showfliers=False,
+            whis=(0, 100),
+            medianprops=dict(color="black", linewidth=1.4),
+            boxprops=dict(color="black", linewidth=1),
+            capprops=dict(color="black", linewidth=0),
+            whiskerprops=dict(color="black", linewidth=1),
+        )
+
+        for j, box in enumerate(bp["boxes"]):
+            box.set_facecolor(color)
+            box.set_alpha(0.25)
+            box.set_edgecolor("black")
+            box.set_linewidth(1)
+            if j == 0:
+                box.set_label(label)
+
+        for data_points, pos in zip(valid_data, valid_pos):
+            if not data_points:
+                continue
+            y_min = min(data_points)
+            y_max = max(data_points)
+            x_vals = [pos, pos]
+            ax.scatter(
+                x_vals,
+                [y_min, y_max],
+                color=color,
+                edgecolor="black",
+                linewidth=0.5,
+                s=20,
+                alpha=0.9,
+                zorder=3,
+            )
+
+    original_xticks = cfg.xticks
+    cfg.xticks = None
+    _apply_axes_config(ax, cfg)
+    cfg.xticks = original_xticks
+
+    ax.set_xscale("linear")
+    ax.set_xticks(indices)
+    ax.set_xticklabels([str(val) for val in x])
+
+    ax.minorticks_off()
+    ax.legend(title=legend_title, loc=legend_loc)
+
+    fig.tight_layout()
+    fig.savefig(outfile, dpi=300)
+    print(f"Saved plot: {outfile}")
+    plt.close(fig)
 
 
 if __name__ == "__main__":
