@@ -443,10 +443,11 @@ def plot_with_box_plots(
                     offset = (rank - (len(overlap_group) - 1) / 2) * single_box_width
                     pos = base_x + offset
                     jitter_scale = jitter_frac
+                jitter_scales.append(jitter_scale)
+            
             positions.append(pos)
             valid_data.append(d)
             valid_pos.append(pos)
-            jitter_scales.append(jitter_scale)
 
         if not valid_data:
             continue
