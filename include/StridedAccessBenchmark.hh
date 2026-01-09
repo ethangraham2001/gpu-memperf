@@ -50,13 +50,13 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
     /* TODO: Refactor with RandomAccessBenchmark */
     uint64_t defaultWorkingSet = 0;
     if (mode_ == "L1") {
-      defaultWorkingSet = 100 * common::KiB; /* L1. */
+      defaultWorkingSet = 64 * common::KiB; /* L1. */
       cachePolicy_ = cacheload::CachePolicy::L1;
     } else if (mode_ == "L2") {
-      defaultWorkingSet = 25 * common::MiB; /* L2. */
+      defaultWorkingSet = 16 * common::MiB; /* L2. */
       cachePolicy_ = cacheload::CachePolicy::L2;
     } else if (mode_ == "DRAM") {
-      defaultWorkingSet = 2 * common::GiB; /* DRAM. */
+      defaultWorkingSet = 8 * common::GiB; /* DRAM. */
       cachePolicy_ = cacheload::CachePolicy::DRAM;
     } else {
       throw std::runtime_error("Invalid mode, please select one of {L1, L2, DRAM}");
@@ -73,7 +73,7 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
       numBlocks_ = getSmCount(0);
 
     const std::string resultCSV = "result.csv";
-    enc_[resultCSV] << "blocks,threads_per_block,working_set,iters,stride,bandwidth,min_bandwidth,max_bandwidth\n";
+    enc_[resultCSV] << "blocks,threads_per_block,working_set,iters,stride,rep,bandwidth\n";
 
     for (uint64_t workingSetSize_ : workingSets_) {
       const uint64_t numElems = util::bytesToNumElems<DataType>(workingSetSize_);
@@ -87,10 +87,6 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
       for (uint64_t stride_ : strides_) {
         const auto kernelLauncher = getLauncher(cachePolicy_);
 
-        double minBandwidth = std::numeric_limits<double>::max();
-        double maxBandwidth = 0.0;
-        double totalBandwidth = 0.0;
-
         for (int rep = 0; rep < reps_; ++rep) {
           float milliseconds = kernelLauncher(hostData, stride_, iters_, threadsPerBlock_, numBlocks_);
 
@@ -98,20 +94,12 @@ class StridedAccessBenchmarkGeneric : public StridedAccessBenchmarkBase {
               static_cast<uint64_t>(numBlocks_) * static_cast<uint64_t>(threadsPerBlock_) * iters_ * sizeof(DataType);
 
           double bandwidth = (double)bytesRead / ((double)milliseconds / 1000.0);
+          enc_[resultCSV] << numBlocks_ << "," << threadsPerBlock_ << "," << util::formatBytes((double)workingSetSize_)
+                          << "," << iters_ << "," << stride_ << "," << rep << "," << bandwidth << "\n";
 
-          minBandwidth = std::min(minBandwidth, bandwidth);
-          maxBandwidth = std::max(maxBandwidth, bandwidth);
-          totalBandwidth += bandwidth;
+          enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " Rep: " << rep
+                     << " BW:" << util::formatBytes(bandwidth) << "\n";
         }
-
-        double meanBandwidth = totalBandwidth / reps_;
-
-        enc_[resultCSV] << numBlocks_ << "," << threadsPerBlock_ << "," << util::formatBytes((double)workingSetSize_)
-                        << "," << iters_ << "," << stride_ << "," << meanBandwidth << "," << minBandwidth << ","
-                        << maxBandwidth << "\n";
-
-        enc_.log() << "Memory: " << mode_ << " Stride: " << stride_ << " BW:" << util::formatBytes(meanBandwidth)
-                   << "\n";
       }
     }
   }
