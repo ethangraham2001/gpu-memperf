@@ -205,7 +205,6 @@ class RandomAccessBenchmark(Benchmark):
             f"--mode={self.mode}",
             f"--data_type={self.data_type}",
             f"--reps={self.reps}",
-            f"--num_blocks={self.num_blocks}",
         ]
         return args
 
@@ -229,7 +228,7 @@ class RandomAccessBenchmark(Benchmark):
                 )
 
                 # Pass reps=1 to binary so it runs once
-                cmd = [gpu_memperf_bin] + self.get_args()
+                cmd = [gpu_memperf_bin] + self.get_args() + [f"--num_blocks={blocks}"]
                 out, failed = run_command_manual_check(cmd)
                 last_out = out
                 last_failed = failed
